@@ -36,3 +36,6 @@ strategy.json
 positions.json
 .kite_session.json
 frontend/.vite/
+
+# Agent output logs
+.output.txt
