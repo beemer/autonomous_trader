@@ -7,11 +7,11 @@ import com.avants.autonomoustrader.service.GovernorService;
 import com.avants.autonomoustrader.service.KiteSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.io.IOException;
 import java.util.List;
 
@@ -31,6 +31,10 @@ public class DashboardController {
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardDto.DashboardResponse> getDashboard() {
+        if (kiteSyncService.isSessionExpired()) {
+            log.warn("Dashboard request rejected — Kite session is expired");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         log.info("Serving live manifest to UI...");
         try {
             TradingManifest manifest = governorService.loadManifest();

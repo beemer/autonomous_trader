@@ -33,3 +33,4 @@ target/
 *.ipr
 
 trading_manifest.json
+.kite_session.json

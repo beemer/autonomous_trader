@@ -9,13 +9,17 @@ import com.zerodhatech.models.Position;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.awt.Desktop;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * KiteSyncService — The Nervous System.
@@ -32,12 +36,34 @@ public class KiteSyncService {
     private final GovernorService governorService;
     private final Executor virtualThreadExecutor;
 
+    @Value("${kite.api-key}")
+    private String apiKey;
+
+    /** True when the last sync failed due to an expired/invalid token (HTTP 403). */
+    private final AtomicBoolean sessionExpired = new AtomicBoolean(false);
+
     public KiteSyncService(KiteConnect kiteConnect,
                            GovernorService governorService,
                            @Qualifier("virtualThreadExecutor") Executor virtualThreadExecutor) {
         this.kiteConnect = kiteConnect;
         this.governorService = governorService;
         this.virtualThreadExecutor = virtualThreadExecutor;
+    }
+
+    /**
+     * Returns true if the last sync attempt failed due to an expired Kite session.
+     */
+    public boolean isSessionExpired() {
+        return sessionExpired.get();
+    }
+
+    /**
+     * Called by KiteAuthController after a successful OAuth handshake to clear the
+     * expired-session flag so the next scheduled sync can proceed normally.
+     */
+    public void clearSessionExpired() {
+        sessionExpired.set(false);
+        log.info("Session-expired flag cleared — sync will resume on next tick");
     }
 
     /**
@@ -49,6 +75,7 @@ public class KiteSyncService {
         String accessToken = kiteConnect.getAccessToken();
         if (accessToken == null || accessToken.equals("placeholder") || accessToken.equals("your_access_token_here")) {
             log.warn("Skipping portfolio sync — access token is not set. Complete OAuth handshake at /api/auth/callback first.");
+            triggerManualLogin();
             return;
         }
         log.info("Starting Kite portfolio sync...");
@@ -70,9 +97,35 @@ public class KiteSyncService {
             manifest.setLivePortfolio(livePortfolio);
             governorService.saveManifest(manifest);
 
+            sessionExpired.set(false);
             log.info("Portfolio sync complete — {} holdings, {} net positions", holdings.size(), positions.size());
         } catch (Exception e) {
-            log.error("Portfolio sync failed", e);
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof KiteException ke && ke.code == 403) {
+                log.warn("Kite session expired (HTTP 403) — triggering manual login");
+                sessionExpired.set(true);
+                triggerManualLogin();
+            } else {
+                log.error("Portfolio sync failed", e);
+            }
+        }
+    }
+
+    /**
+     * Opens the Kite login URL in the system default browser so the user can
+     * complete the OAuth handshake without manually constructing the URL.
+     */
+    public void triggerManualLogin() {
+        String loginUrl = "https://kite.trade/connect/login?v=3&api_key=" + apiKey;
+        log.info("Opening Kite login URL in browser: {}", loginUrl);
+        try {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                Desktop.getDesktop().browse(URI.create(loginUrl));
+            } else {
+                log.warn("Desktop browsing not supported on this platform — please open manually: {}", loginUrl);
+            }
+        } catch (IOException e) {
+            log.error("Failed to open browser for Kite login", e);
         }
     }
 
