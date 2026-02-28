@@ -1,7 +1,10 @@
 package com.avants.autonomoustrader.service;
 
-import com.avants.autonomoustrader.model.TradingManifest;
+import com.avants.autonomoustrader.dto.KiteDto;
+import com.avants.autonomoustrader.model.PositionsManifest;
+import com.avants.autonomoustrader.model.StrategyManifest;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -19,134 +22,104 @@ class GovernorServiceTest {
     Path tempDir;
 
     private GovernorService governorService;
-    private File manifestFile;
+    private File strategyFile;
+    private File positionsFile;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
-    void setUp() {
-        manifestFile = tempDir.resolve("trading_manifest.json").toFile();
-        governorService = new GovernorService(manifestFile.getAbsolutePath());
+    void setUp() throws IOException {
+        strategyFile = tempDir.resolve("strategy.json").toFile();
+        positionsFile = tempDir.resolve("positions.json").toFile();
+        governorService = new GovernorService(strategyFile.getAbsolutePath(), positionsFile.getAbsolutePath());
+        objectMapper = new ObjectMapper();
+        objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+
+        // Write a minimal strategy.json for tests that need it
+        StrategyManifest strategy = buildSampleStrategy();
+        objectMapper.writeValue(strategyFile, strategy);
     }
 
-    private TradingManifest buildSampleManifest() {
-        TradingManifest manifest = new TradingManifest();
-        manifest.setManifestVersion("1.0.0");
-        manifest.setLastUpdated("2026-02-28T12:00:00");
-
-        TradingManifest.Universe universe = new TradingManifest.Universe();
-        universe.setName("Nifty 50");
-        universe.setExchange("NSE");
-        universe.setSymbols(List.of("RELIANCE", "TCS", "INFY"));
-        manifest.setUniverse(universe);
-
-        TradingManifest.TechnicalStrategy strategy = new TradingManifest.TechnicalStrategy();
-        strategy.setName("EMA Crossover + MACD Breakout");
-        strategy.setDescription("Test strategy");
-        strategy.setEntryConditions(List.of("EMA_9 > EMA_200"));
-        strategy.setExitConditions(List.of("Stop loss hit"));
-
-        TradingManifest.Indicator indicator = new TradingManifest.Indicator();
-        indicator.setType("EMA");
-        indicator.setPeriod(9);
-        indicator.setSource("close");
-        strategy.setIndicators(List.of(indicator));
-        manifest.setTechnicalStrategy(strategy);
-
-        TradingManifest.RiskParameters risk = new TradingManifest.RiskParameters();
-        risk.setMaxCapitalPerTradePct(5.0);
-        risk.setMaxOpenPositions(5);
-        risk.setStopLossPct(1.5);
-        risk.setTargetPct(3.0);
-        manifest.setRiskParameters(risk);
-
-        return manifest;
-    }
-
-    @Test
-    void shouldSaveAndLoadManifestRoundTrip() throws IOException {
-        TradingManifest original = buildSampleManifest();
-        governorService.saveManifest(original);
-
-        TradingManifest loaded = governorService.loadManifest();
-
-        assertEquals("1.0.0", loaded.getManifestVersion());
-        assertEquals("Nifty 50", loaded.getUniverse().getName());
-        assertEquals("NSE", loaded.getUniverse().getExchange());
-        assertEquals(3, loaded.getUniverse().getSymbols().size());
-        assertEquals("EMA Crossover + MACD Breakout", loaded.getTechnicalStrategy().getName());
-        assertEquals(5.0, loaded.getRiskParameters().getMaxCapitalPerTradePct());
-        assertEquals(5, loaded.getRiskParameters().getMaxOpenPositions());
-        assertEquals(1.5, loaded.getRiskParameters().getStopLossPct());
-        assertEquals(3.0, loaded.getRiskParameters().getTargetPct());
-    }
-
-    @Test
-    void shouldStampLastUpdatedOnSave() throws IOException {
-        TradingManifest manifest = buildSampleManifest();
-        manifest.setLastUpdated("old-timestamp");
-
-        governorService.saveManifest(manifest);
-
-        TradingManifest loaded = governorService.loadManifest();
-        assertNotNull(loaded.getLastUpdated());
-        assertNotEquals("old-timestamp", loaded.getLastUpdated());
-    }
-
-    @Test
-    void shouldThrowIOExceptionWhenManifestFileMissing() {
-        assertThrows(IOException.class, () -> governorService.loadManifest());
-    }
-
-    @Test
-    void shouldPersistSymbolsCorrectly() throws IOException {
-        TradingManifest manifest = buildSampleManifest();
-        manifest.getUniverse().setSymbols(List.of("RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK"));
-
-        governorService.saveManifest(manifest);
-        TradingManifest loaded = governorService.loadManifest();
-
-        assertEquals(5, loaded.getUniverse().getSymbols().size());
-        assertTrue(loaded.getUniverse().getSymbols().contains("HDFCBANK"));
-    }
-
-    @Test
-    void shouldPersistIndicatorsCorrectly() throws IOException {
-        TradingManifest manifest = buildSampleManifest();
-        TradingManifest.Indicator macd = new TradingManifest.Indicator();
-        macd.setType("MACD");
-        macd.setPeriod(12);
-        macd.setSource("close");
-        manifest.getTechnicalStrategy().setIndicators(List.of(
-                manifest.getTechnicalStrategy().getIndicators().get(0), macd
+    private StrategyManifest buildSampleStrategy() {
+        StrategyManifest strategy = new StrategyManifest();
+        strategy.setStrategyVersion("1.0.0");
+        strategy.setLastUpdated("2026-02-28T12:00:00");
+        strategy.setUniverse(new StrategyManifest.Universe("Nifty 50", "NSE", List.of("RELIANCE", "TCS", "INFY")));
+        strategy.setTechnicalStrategy(new StrategyManifest.TechnicalStrategy(
+                "EMA Crossover + MACD Breakout",
+                "Test strategy",
+                List.of(new StrategyManifest.Indicator("EMA", 9, "close")),
+                List.of("EMA_9 > EMA_200"),
+                List.of("Stop loss hit")
         ));
+        strategy.setRiskParameters(new StrategyManifest.RiskParameters(5.0, 5, 1.5, 3.0));
+        return strategy;
+    }
 
-        governorService.saveManifest(manifest);
-        TradingManifest loaded = governorService.loadManifest();
-
-        assertEquals(2, loaded.getTechnicalStrategy().getIndicators().size());
-        assertEquals("MACD", loaded.getTechnicalStrategy().getIndicators().get(1).getType());
-        assertEquals(12, loaded.getTechnicalStrategy().getIndicators().get(1).getPeriod());
+    private KiteDto.LivePortfolio buildSamplePortfolio() {
+        KiteDto.HoldingDto holding = new KiteDto.HoldingDto("RELIANCE", "NSE", "CNC", 10, 0, 1400.0, 1450.0, 500.0);
+        return new KiteDto.LivePortfolio(List.of(holding), List.of());
     }
 
     @Test
-    void shouldWriteValidJsonToFile() throws IOException {
-        TradingManifest manifest = buildSampleManifest();
-        governorService.saveManifest(manifest);
+    void shouldLoadStrategyFromDisk() throws IOException {
+        StrategyManifest loaded = governorService.loadStrategy();
 
-        assertTrue(manifestFile.exists());
-        assertTrue(manifestFile.length() > 0);
+        assertNotNull(loaded);
+        assertEquals("1.0.0", loaded.getStrategyVersion());
+        assertEquals("Nifty 50", loaded.getUniverse().name());
+        assertEquals("NSE", loaded.getUniverse().exchange());
+        assertEquals(3, loaded.getUniverse().symbols().size());
+        assertEquals("EMA Crossover + MACD Breakout", loaded.getTechnicalStrategy().name());
+        assertEquals(5.0, loaded.getRiskParameters().maxCapitalPerTradePct());
+        assertEquals(5, loaded.getRiskParameters().maxOpenPositions());
+        assertEquals(1.5, loaded.getRiskParameters().stopLossPct());
+        assertEquals(3.0, loaded.getRiskParameters().targetPct());
+    }
 
-        // Verify it's valid JSON by parsing it independently
-        ObjectMapper mapper = new ObjectMapper();
-        TradingManifest parsed = mapper.readValue(manifestFile, TradingManifest.class);
+    @Test
+    void shouldThrowIOExceptionWhenStrategyFileMissing() {
+        GovernorService noFileService = new GovernorService(
+                tempDir.resolve("missing_strategy.json").toString(),
+                positionsFile.getAbsolutePath()
+        );
+        assertThrows(IOException.class, noFileService::loadStrategy);
+    }
+
+    @Test
+    void shouldReturnEmptyPositionsWhenFileMissing() throws IOException {
+        // positionsFile does not exist yet
+        PositionsManifest positions = governorService.loadPositions();
+        assertNotNull(positions);
+        assertNull(positions.getLivePortfolio());
+    }
+
+    @Test
+    void shouldSaveAndLoadPositionsRoundTrip() throws IOException {
+        KiteDto.LivePortfolio portfolio = buildSamplePortfolio();
+        governorService.savePositions(portfolio);
+
+        PositionsManifest loaded = governorService.loadPositions();
+        assertNotNull(loaded);
+        assertNotNull(loaded.getLastUpdated());
+        assertNotNull(loaded.getLivePortfolio());
+        assertEquals(1, loaded.getLivePortfolio().holdings().size());
+        assertEquals("RELIANCE", loaded.getLivePortfolio().holdings().get(0).tradingSymbol());
+    }
+
+    @Test
+    void shouldWriteValidJsonToPositionsFile() throws IOException {
+        governorService.savePositions(buildSamplePortfolio());
+
+        assertTrue(positionsFile.exists());
+        assertTrue(positionsFile.length() > 0);
+
+        PositionsManifest parsed = objectMapper.readValue(positionsFile, PositionsManifest.class);
         assertNotNull(parsed);
-        assertEquals("1.0.0", parsed.getManifestVersion());
+        assertNotNull(parsed.getLivePortfolio());
     }
 
     @Test
-    void shouldPrintManifestSummaryWithoutException() throws IOException {
-        TradingManifest manifest = buildSampleManifest();
-        governorService.saveManifest(manifest);
-
+    void shouldPrintManifestSummaryWithoutException() {
         assertDoesNotThrow(() -> governorService.printManifestSummary());
     }
 }
