@@ -24,7 +24,7 @@ public class TechnicalScannerService {
 
     private static final Logger log = LoggerFactory.getLogger(TechnicalScannerService.class);
     private static final int EMA_PERIOD = 200;
-    private static final int HISTORICAL_DAYS = 250; // ~1 year of trading days
+    private static final int HISTORICAL_DAYS = 400; // ~1 year of trading days
 
     private final MarketDataService marketDataService;
     private final PersistenceManager persistenceManager;

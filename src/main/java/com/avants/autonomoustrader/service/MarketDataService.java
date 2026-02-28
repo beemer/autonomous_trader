@@ -91,6 +91,7 @@ public class MarketDataService {
 
     /**
      * Fetches historical candles for multiple symbols in batch.
+     * Includes a small delay to respect Kite API rate limits (3 requests/sec).
      *
      * @param symbols  List of trading symbols
      * @param exchange Exchange code
@@ -104,21 +105,58 @@ public class MarketDataService {
             String interval,
             int daysBack) throws IOException, KiteException {
 
-        Map<String, String> instrumentTokens = mapSymbolsToInstrumentTokens(symbols, exchange);
+        Map<String, String> instrumentTokens;
+        try {
+            instrumentTokens = mapSymbolsToInstrumentTokens(symbols, exchange);
+        } catch (Exception e) {
+            log.error("Failed to map instrument tokens for batch scan", e);
+            return Collections.emptyMap();
+        }
+
         Map<String, HistoricalData> result = new HashMap<>();
 
-        for (String symbol : symbols) {
+        for (int i = 0; i < symbols.size(); i++) {
+            String symbol = symbols.get(i);
             String instrumentToken = instrumentTokens.get(symbol);
             if (instrumentToken == null) {
                 log.warn("No instrument token found for symbol: {}", symbol);
                 continue;
             }
 
-            try {
-                HistoricalData candles = fetchHistoricalCandles(instrumentToken, interval, daysBack);
-                result.put(symbol, candles);
-            } catch (Exception e) {
-                log.error("Failed to fetch candles for symbol {}: {}", symbol, e.getMessage());
+            // Throttling: 350ms sleep between requests to stay within 3 req/sec limit
+            if (i > 0) {
+                try {
+                    Thread.sleep(350);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Throttling interrupted for symbol {}", symbol);
+                    break;
+                }
+            }
+
+            // Retry logic (3 attempts with backoff)
+            int attempts = 0;
+            boolean success = false;
+            while (attempts < 3 && !success) {
+                attempts++;
+                try {
+                    HistoricalData candles = fetchHistoricalCandles(instrumentToken, interval, daysBack);
+                    result.put(symbol, candles);
+                    success = true;
+                } catch (Exception e) {
+                    if (attempts < 3) {
+                        long backoff = attempts * 500L;
+                        log.warn("Attempt {} failed for {}: {}. Retrying in {}ms...", attempts, symbol, e.getMessage(), backoff);
+                        try {
+                            Thread.sleep(backoff);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    } else {
+                        log.error("Failed to fetch candles for {} after {} attempts", symbol, attempts, e);
+                    }
+                }
             }
         }
 
