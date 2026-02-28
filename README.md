@@ -14,8 +14,8 @@
 │  │   THE GOVERNOR           │      │   THE EXECUTIONER      │  │
 │  │   (Java Spring Boot App) │      │   (OpenClaw Agent)     │  │
 │  │                          │      │                        │  │
-│  │  - Manages "The Bible"   │─────▶│  - Reads the manifest  │  │
-│  │  - Defines Universe      │      │  - Fetches live data   │  │
+│  │  - Manages strategy &    │─────▶│  - Reads strategy &    │  │
+│  │    positions files       │      │    positions files     │  │
 │  │  - Sets Strategy Rules   │      │  - Asks Claude 4.6     │  │
 │  │  - Sets Risk Parameters  │      │    for trade approval  │  │
 │  │  - Syncs live portfolio  │      │  - Executes trades via │  │
@@ -24,8 +24,8 @@
 │  └──────────────────────────┘                                   │
 │             │                                                   │
 │             ▼                                                   │
-│    trading_manifest.json                                        │
-│       ("The Bible")                                             │
+│    strategy.json + positions.json                               │
+│       (strategy rules + live portfolio)                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -35,7 +35,7 @@
 
 **Role:** The Librarian / Strategic Brain
 
-The Governor is a **Spring Boot 3 (Java 21)** application that acts as the single source of truth for the trading system. It owns and manages `trading_manifest.json` — referred to internally as **"The Bible"** — and continuously syncs live portfolio data from Zerodha Kite Connect.
+The Governor is a **Spring Boot 3 (Java 21)** application that acts as the single source of truth for the trading system. It owns and manages `strategy.json` (universe, strategy rules, risk parameters) and `positions.json` (live portfolio), and continuously syncs live portfolio data from Zerodha Kite Connect.
 
 ### Responsibilities
 
@@ -45,7 +45,7 @@ The Governor is a **Spring Boot 3 (Java 21)** application that acts as the singl
 | **Strategy Definition** | Encodes the technical strategy rules (e.g., 9 EMA > 200 EMA + MACD Breakout) |
 | **Risk Governance** | Sets hard limits: max capital per trade, max open positions, stop-loss %, target % |
 | **Live Portfolio Sync** | Fetches holdings and net positions from Zerodha every 60 seconds via Java 21 Virtual Threads |
-| **Manifest Publishing** | Writes the final `trading_manifest.json` that OpenClaw reads |
+| **Strategy Publishing** | Writes `strategy.json` and `positions.json` that OpenClaw reads |
 | **REST API** | Exposes `/api/dashboard` and `/api/portfolio` endpoints for the frontend and external consumers |
 
 ### Key Classes
@@ -62,9 +62,10 @@ src/main/java/com/avants/autonomoustrader/
 │   ├── DashboardDto.java                  # DashboardResponse, PerformanceStats, Holding, StrategyViewer
 │   └── KiteDto.java                       # LivePortfolio, HoldingDto, PositionDto
 ├── model/
-│   └── TradingManifest.java               # POJO model for The Bible
+│   ├── TradingStrategy.java              # POJO model for strategy.json
+│   └── TradingPositions.java             # POJO model for positions.json
 └── service/
-    ├── GovernorService.java               # Load / save / summarize the manifest
+    ├── GovernorService.java               # Load / save / summarize strategy and positions
     └── KiteSyncService.java               # Scheduled sync: holdings + positions every 60s
 ```
 
@@ -91,7 +92,7 @@ OpenClaw is a **separate autonomous agent** that operates independently from the
 
 | Responsibility | Description |
 |---|---|
-| **Manifest Consumption** | Reads `trading_manifest.json` to understand the current Universe, Strategy, and live portfolio |
+| **File Consumption** | Reads `strategy.json` and `positions.json` to understand the current Universe, Strategy, and live portfolio |
 | **Live Data Fetching** | Fetches real-time OHLCV data for all symbols in the Universe |
 | **AI-Powered Approval** | Sends market context + strategy rules to **Claude 4.6** and asks: *"Should I trade this?"* |
 | **Trade Execution** | Places, monitors, and exits trades via the **Zerodha Kite Connect API** |
@@ -99,7 +100,7 @@ OpenClaw is a **separate autonomous agent** that operates independently from the
 ### OpenClaw Decision Flow
 
 ```
-Read trading_manifest.json
+Read strategy.json + positions.json
         │
         ▼
 Fetch live market data (OHLCV) for each symbol
@@ -108,7 +109,7 @@ Fetch live market data (OHLCV) for each symbol
 Compute indicators (EMA 9, EMA 200, MACD)
         │
         ▼
-Check entry conditions from manifest
+Check entry conditions from strategy.json
         │
         ▼
 If conditions met → Ask Claude 4.6 for approval
@@ -120,13 +121,15 @@ If conditions met → Ask Claude 4.6 for approval
 
 ---
 
-## "The Bible" — trading_manifest.json
+## The Contract — `strategy.json` + `positions.json`
 
-This JSON file is the **contract** between the Governor and the Executioner. The Governor writes it; OpenClaw reads it.
+These two files are the **contract** between the Governor and the Executioner. The Governor writes them; OpenClaw reads them.
+
+**`strategy.json`** — universe, technical strategy rules, and risk parameters:
 
 ```json
 {
-  "manifest_version": "1.0.0",
+  "strategy_version": "1.0.0",
   "last_updated": "2026-02-28T12:00:00",
   "universe": {
     "name": "Nifty 50",
@@ -135,13 +138,8 @@ This JSON file is the **contract** between the Governor and the Executioner. The
   },
   "technical_strategy": {
     "name": "EMA Crossover + MACD Breakout",
-    "description": "Enter long when 9 EMA is above 200 EMA and MACD line crosses above signal line.",
     "indicators": [...],
-    "entry_conditions": [
-      "EMA_9 > EMA_200",
-      "MACD_LINE crosses_above MACD_SIGNAL",
-      "VOLUME > 1.5x 20-period average volume"
-    ],
+    "entry_conditions": ["EMA_9 > EMA_200", "MACD_LINE crosses_above MACD_SIGNAL", "..."],
     "exit_conditions": [...]
   },
   "risk_parameters": {
@@ -149,7 +147,15 @@ This JSON file is the **contract** between the Governor and the Executioner. The
     "max_open_positions": 5,
     "stop_loss_pct": 1.5,
     "target_pct": 3.0
-  },
+  }
+}
+```
+
+**`positions.json`** — live portfolio synced every 60s from Zerodha:
+
+```json
+{
+  "last_updated": "2026-02-28T12:00:00",
   "live_portfolio": {
     "holdings": [...],
     "positions": [...]
@@ -219,7 +225,8 @@ Key settings in `src/main/resources/application.properties`:
 |---|---|---|
 | `server.port` | `8080` | HTTP port |
 | `spring.threads.virtual.enabled` | `true` | Java 21 Virtual Threads |
-| `trading.manifest.path` | `trading_manifest.json` | Path to The Bible |
+| `trading.strategy.path` | `strategy.json` | Path to the strategy file |
+| `trading.positions.path` | `positions.json` | Path to the positions file |
 | `kite.api-key` | `${KITE_API_KEY}` | Zerodha API key |
 | `kite.access-token` | `${KITE_ACCESS_TOKEN}` | Zerodha access token |
 
@@ -230,7 +237,8 @@ Key settings in `src/main/resources/application.properties`:
 ```
 autonomous_trader/
 ├── pom.xml                              # Maven build (Java 21, Spring Boot 3)
-├── trading_manifest.json                # "The Bible" — read by OpenClaw
+├── strategy.json                        # Strategy rules + universe — read by OpenClaw
+├── positions.json                       # Live portfolio — updated every 60s
 ├── README.md
 ├── PROJECT_CONTEXT.md                   # Agent/contributor onboarding guide
 ├── .junie/
@@ -269,13 +277,13 @@ autonomous_trader/
 ## Roadmap
 
 - [x] Spring Boot 3 + Java 21 scaffold
-- [x] `trading_manifest.json` (Nifty 50 + EMA/MACD strategy)
+- [x] `strategy.json` (Nifty 50 + EMA/MACD strategy) + `positions.json` (live portfolio)
 - [x] Java 21 Virtual Thread executor
 - [x] Zerodha KiteConnect integration (live holdings + positions sync every 60s)
 - [x] REST API: `/api/dashboard`, `/api/portfolio`
 - [x] React frontend dashboard
-- [ ] Full CRUD REST API for manifest management
-- [ ] Manifest versioning and audit log
+- [ ] Full CRUD REST API for strategy management
+- [ ] Strategy versioning and audit log
 - [ ] Multi-strategy support (different strategies per symbol group)
 - [ ] OpenClaw Executioner (separate repo)
 - [ ] Claude integration in Executioner

@@ -1,0 +1,341 @@
+[Per-file diff display: 6 files shown, 1 files hidden due to size]
+
+diff --git a/.gitignore b/.gitignore
+index 1ea4179..3bb0aca 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -32,7 +32,7 @@ target/
+ *.iws
+ *.ipr
+
+-trading_manifest.json
+-.kite_session.json
++strategy.json
+ positions.json
++.kite_session.json
+ frontend/.vite/
+
+diff --git a/PROJECT_CONTEXT.md b/PROJECT_CONTEXT.md
+index 71fa5a8..41e5cdc 100644
+--- a/PROJECT_CONTEXT.md
++++ b/PROJECT_CONTEXT.md
+@@ -10,22 +10,28 @@ A **two-component autonomous trading system** for Indian equity markets (NSE/BSE
+
+ | Component | Name | Tech | Role |
+ |---|---|---|---|
+-| This repo | **The Governor** (The Librarian) | Java 21 + Spring Boot 3 + React frontend | Owns strategy, universe, risk rules, live portfolio sync. Publishes `trading_manifest.json`. |
++| This repo | **The Governor** (The Librarian) | Java 21 + Spring Boot 3 + React frontend | Owns strategy, universe, risk rules, live portfolio sync. Publishes `strategy.json` and `positions.json`. |
+ | Separate repo | **The Executioner** (OpenClaw) | Autonomous agent | Reads the manifest, fetches live data, asks Claude for trade approval, executes via Kite API. |
+
+ ---
+
+-## The Bible — `trading_manifest.json`
++## The Contract — `strategy.json` + `positions.json`
+
+-The single most important file in this repo. It is the contract between The Governor and The Executioner.
++These two files are the contract between The Governor and The Executioner.
++
++**`strategy.json`** — strategy rules, universe, and risk parameters:
+
+ | Section | Purpose |
+ |---|---|
+ | `universe` | List of eligible trading instruments (e.g., Nifty 50 symbols on NSE) |
+-| `technicalStrategy` | Strategy rules: EMA crossover (9 EMA > 200 EMA), MACD breakout conditions |
+-| `riskParameters` | Hard limits: max capital per trade, max open positions, stop-loss %, target % |
+-| `livePortfolio` | Live holdings and net positions synced every minute from Zerodha Kite |
+-| `metadata` | Version, last-updated timestamp, active flag |
++| `technical_strategy` | Strategy rules: EMA crossover (9 EMA > 200 EMA), MACD breakout conditions |
++| `risk_parameters` | Hard limits: max capital per trade, max open positions, stop-loss %, target % |
++
++**`positions.json`** — live portfolio:
++
++| Section | Purpose |
++|---|---|
++| `live_portfolio` | Live holdings and net positions synced every minute from Zerodha Kite |
+
+ ---
+
+@@ -34,7 +40,8 @@ The single most important file in this repo. It is the contract between The Gove
+ ```
+ autonomous_trader/
+ ├── pom.xml                                              # Maven build (Java 21, Spring Boot 3, Jackson, Kite SDK)
+-├── trading_manifest.json                                # "The Bible" — read by OpenClaw at runtime
++├── strategy.json                                        # Strategy rules + universe — read by OpenClaw at runtime
++├── positions.json                                       # Live portfolio — updated every 60s
+ ├── README.md                                            # Full architecture documentation
+ ├── PROJECT_CONTEXT.md                                   # This file — agent/contributor onboarding
+ ├── .junie/
+@@ -57,9 +64,10 @@ autonomous_trader/
+     │   │   │   ├── DashboardDto.java                     # Records: DashboardResponse, PerformanceStats, Holding, StrategyViewer
+     │   │   │   └── KiteDto.java                          # Records: LivePortfolio, HoldingDto, PositionDto
+     │   │   ├── model/
+-    │   │   │   └── TradingManifest.java                  # POJO model for The Bible (Universe, Strategy, Risk, LivePortfolio)
++    │   │   │   ├── TradingStrategy.java                  # POJO model for strategy.json (Universe, Strategy, Risk)
++    │   │   │   └── TradingPositions.java                 # POJO model for positions.json (LivePortfolio)
+     │   │   └── service/
+-    │   │       ├── GovernorService.java                  # Load / save / summarize trading_manifest.json
++    │   │       ├── GovernorService.java                  # Load / save / summarize strategy.json and positions.json
+     │   │       └── KiteSyncService.java                  # Scheduled: fetches holdings + positions from Kite every 60s via Virtual Threads
+     │   └── resources/
+     │       └── application.properties                    # Port 8080, manifest path, Kite credentials, logging level
+@@ -89,7 +97,8 @@ autonomous_trader/
+ |---|---|---|
+ | `server.port` | `8080` | HTTP port |
+ | `spring.threads.virtual.enabled` | `true` | Enables Java 21 Virtual Threads |
+-| `trading.manifest.path` | `trading_manifest.json` | Path to The Bible |
++| `trading.strategy.path` | `strategy.json` | Path to the strategy file |
++| `trading.positions.path` | `positions.json` | Path to the positions file |
+ | `kite.api-key` | `${KITE_API_KEY}` | Zerodha API key (set via env var) |
+ | `kite.access-token` | `${KITE_ACCESS_TOKEN}` | Zerodha access token (set via env var) |
+
+@@ -109,14 +118,14 @@ autonomous_trader/
+ ```
+ 1. Human operator updates strategy/risk rules via The Governor (this app)
+         ↓
+-2. GovernorService writes updated trading_manifest.json ("The Bible")
++2. GovernorService writes updated strategy.json
+         ↓
+ 3. KiteSyncService fetches live holdings + positions from Zerodha every 60s
+    (parallel CompletableFuture on Java 21 Virtual Threads)
+         ↓
+-4. Live portfolio is written back into trading_manifest.json
++4. Live portfolio is written back into positions.json
+         ↓
+-5. OpenClaw (The Executioner) reads trading_manifest.json on each cycle
++5. OpenClaw (The Executioner) reads strategy.json + positions.json on each cycle
+         ↓
+ 6. OpenClaw fetches live market data for instruments in `universe`
+         ↓
+@@ -162,7 +171,8 @@ npm run dev
+ | Item | Status |
+ |---|---|
+ | Governor Spring Boot scaffold | ✅ Complete |
+-| `trading_manifest.json` (Nifty 50 + EMA/MACD strategy) | ✅ Complete |
++| `strategy.json` (Nifty 50 + EMA/MACD strategy) | ✅ Complete |
++| `positions.json` (live portfolio) | ✅ Complete |
+ | Java 21 Virtual Thread executor (`AsyncConfig`) | ✅ Complete |
+ | Zerodha KiteConnect config (`KiteConfig`) | ✅ Complete |
+ | Live portfolio sync every 60s (`KiteSyncService`) | ✅ Complete |
+
+diff --git a/README.md b/README.md
+index c873b9e..bc3695d 100644
+--- a/README.md
++++ b/README.md
+@@ -14,8 +14,8 @@
+ │  │   THE GOVERNOR           │      │   THE EXECUTIONER      │  │
+ │  │   (Java Spring Boot App) │      │   (OpenClaw Agent)     │  │
+ │  │                          │      │                        │  │
+-│  │  - Manages "The Bible"   │─────▶│  - Reads the manifest  │  │
+-│  │  - Defines Universe      │      │  - Fetches live data   │  │
++│  │  - Manages strategy &    │─────▶│  - Reads strategy &    │  │
++│  │    positions files       │      │    positions files     │  │
+ │  │  - Sets Strategy Rules   │      │  - Asks Claude 4.6     │  │
+ │  │  - Sets Risk Parameters  │      │    for trade approval  │  │
+ │  │  - Syncs live portfolio  │      │  - Executes trades via │  │
+@@ -24,8 +24,8 @@
+ │  └──────────────────────────┘                                   │
+ │             │                                                   │
+ │             ▼                                                   │
+-│    trading_manifest.json                                        │
+-│       ("The Bible")                                             │
++│    strategy.json + positions.json                               │
++│       (strategy rules + live portfolio)                         │
+ └─────────────────────────────────────────────────────────────────┘
+ ```
+
+@@ -35,7 +35,7 @@
+
+ **Role:** The Librarian / Strategic Brain
+
+-The Governor is a **Spring Boot 3 (Java 21)** application that acts as the single source of truth for the trading system. It owns and manages `trading_manifest.json` — referred to internally as **"The Bible"** — and continuously syncs live portfolio data from Zerodha Kite Connect.
++The Governor is a **Spring Boot 3 (Java 21)** application that acts as the single source of truth for the trading system. It owns and manages `strategy.json` (universe, strategy rules, risk parameters) and `positions.json` (live portfolio), and continuously syncs live portfolio data from Zerodha Kite Connect.
+
+ ### Responsibilities
+
+@@ -45,7 +45,7 @@ The Governor is a **Spring Boot 3 (Java 21)** application that acts as the singl
+ | **Strategy Definition** | Encodes the technical strategy rules (e.g., 9 EMA > 200 EMA + MACD Breakout) |
+ | **Risk Governance** | Sets hard limits: max capital per trade, max open positions, stop-loss %, target % |
+ | **Live Portfolio Sync** | Fetches holdings and net positions from Zerodha every 60 seconds via Java 21 Virtual Threads |
+-| **Manifest Publishing** | Writes the final `trading_manifest.json` that OpenClaw reads |
++| **Strategy Publishing** | Writes `strategy.json` and `positions.json` that OpenClaw reads |
+ | **REST API** | Exposes `/api/dashboard` and `/api/portfolio` endpoints for the frontend and external consumers |
+
+ ### Key Classes
+@@ -62,9 +62,10 @@ src/main/java/com/avants/autonomoustrader/
+ │   ├── DashboardDto.java                  # DashboardResponse, PerformanceStats, Holding, StrategyViewer
+ │   └── KiteDto.java                       # LivePortfolio, HoldingDto, PositionDto
+ ├── model/
+-│   └── TradingManifest.java               # POJO model for The Bible
++│   ├── TradingStrategy.java              # POJO model for strategy.json
++│   └── TradingPositions.java             # POJO model for positions.json
+ └── service/
+-    ├── GovernorService.java               # Load / save / summarize the manifest
++    ├── GovernorService.java               # Load / save / summarize strategy and positions
+     └── KiteSyncService.java               # Scheduled sync: holdings + positions every 60s
+ ```
+
+@@ -91,7 +92,7 @@ OpenClaw is a **separate autonomous agent** that operates independently from the
+
+ | Responsibility | Description |
+ |---|---|
+-| **Manifest Consumption** | Reads `trading_manifest.json` to understand the current Universe, Strategy, and live portfolio |
++| **File Consumption** | Reads `strategy.json` and `positions.json` to understand the current Universe, Strategy, and live portfolio |
+ | **Live Data Fetching** | Fetches real-time OHLCV data for all symbols in the Universe |
+ | **AI-Powered Approval** | Sends market context + strategy rules to **Claude 4.6** and asks: *"Should I trade this?"* |
+ | **Trade Execution** | Places, monitors, and exits trades via the **Zerodha Kite Connect API** |
+@@ -99,7 +100,7 @@ OpenClaw is a **separate autonomous agent** that operates independently from the
+ ### OpenClaw Decision Flow
+
+ ```
+-Read trading_manifest.json
++Read strategy.json + positions.json
+         │
+         ▼
+ Fetch live market data (OHLCV) for each symbol
+@@ -108,7 +109,7 @@ Fetch live market data (OHLCV) for each symbol
+ Compute indicators (EMA 9, EMA 200, MACD)
+         │
+         ▼
+-Check entry conditions from manifest
++Check entry conditions from strategy.json
+         │
+         ▼
+ If conditions met → Ask Claude 4.6 for approval
+@@ -120,13 +121,15 @@ If conditions met → Ask Claude 4.6 for approval
+
+ ---
+
+-## "The Bible" — trading_manifest.json
++## The Contract — `strategy.json` + `positions.json`
+
+-This JSON file is the **contract** between the Governor and the Executioner. The Governor writes it; OpenClaw reads it.
++These two files are the **contract** between the Governor and the Executioner. The Governor writes them; OpenClaw reads them.
++
++**`strategy.json`** — universe, technical strategy rules, and risk parameters:
+
+ ```json
+ {
+-  "manifest_version": "1.0.0",
++  "strategy_version": "1.0.0",
+   "last_updated": "2026-02-28T12:00:00",
+   "universe": {
+     "name": "Nifty 50",
+@@ -135,13 +138,8 @@ This JSON file is the **contract** between the Governor and the Executioner. The
+   },
+   "technical_strategy": {
+     "name": "EMA Crossover + MACD Breakout",
+-    "description": "Enter long when 9 EMA is above 200 EMA and MACD line crosses above signal line.",
+     "indicators": [...],
+-    "entry_conditions": [
+-      "EMA_9 > EMA_200",
+-      "MACD_LINE crosses_above MACD_SIGNAL",
+-      "VOLUME > 1.5x 20-period average volume"
+-    ],
++    "entry_conditions": ["EMA_9 > EMA_200", "MACD_LINE crosses_above MACD_SIGNAL", "..."],
+     "exit_conditions": [...]
+   },
+   "risk_parameters": {
+@@ -149,7 +147,15 @@ This JSON file is the **contract** between the Governor and the Executioner. The
+     "max_open_positions": 5,
+     "stop_loss_pct": 1.5,
+     "target_pct": 3.0
+-  },
++  }
++}
++```
++
++**`positions.json`** — live portfolio synced every 60s from Zerodha:
++
++```json
++{
++  "last_updated": "2026-02-28T12:00:00",
+   "live_portfolio": {
+     "holdings": [...],
+     "positions": [...]
+@@ -219,7 +225,8 @@ Key settings in `src/main/resources/application.properties`:
+ |---|---|---|
+ | `server.port` | `8080` | HTTP port |
+ | `spring.threads.virtual.enabled` | `true` | Java 21 Virtual Threads |
+-| `trading.manifest.path` | `trading_manifest.json` | Path to The Bible |
++| `trading.strategy.path` | `strategy.json` | Path to the strategy file |
++| `trading.positions.path` | `positions.json` | Path to the positions file |
+ | `kite.api-key` | `${KITE_API_KEY}` | Zerodha API key |
+ | `kite.access-token` | `${KITE_ACCESS_TOKEN}` | Zerodha access token |
+
+@@ -230,7 +237,8 @@ Key settings in `src/main/resources/application.properties`:
+ ```
+ autonomous_trader/
+ ├── pom.xml                              # Maven build (Java 21, Spring Boot 3)
+-├── trading_manifest.json                # "The Bible" — read by OpenClaw
++├── strategy.json                        # Strategy rules + universe — read by OpenClaw
++├── positions.json                       # Live portfolio — updated every 60s
+ ├── README.md
+ ├── PROJECT_CONTEXT.md                   # Agent/contributor onboarding guide
+ ├── .junie/
+@@ -269,13 +277,13 @@ autonomous_trader/
+ ## Roadmap
+
+ - [x] Spring Boot 3 + Java 21 scaffold
+-- [x] `trading_manifest.json` (Nifty 50 + EMA/MACD strategy)
++- [x] `strategy.json` (Nifty 50 + EMA/MACD strategy) + `positions.json` (live portfolio)
+ - [x] Java 21 Virtual Thread executor
+ - [x] Zerodha KiteConnect integration (live holdings + positions sync every 60s)
+ - [x] REST API: `/api/dashboard`, `/api/portfolio`
+ - [x] React frontend dashboard
+-- [ ] Full CRUD REST API for manifest management
+-- [ ] Manifest versioning and audit log
++- [ ] Full CRUD REST API for strategy management
++- [ ] Strategy versioning and audit log
+ - [ ] Multi-strategy support (different strategies per symbol group)
+ - [ ] OpenClaw Executioner (separate repo)
+ - [ ] Claude integration in Executioner
+
+diff --git a/pom.xml b/pom.xml
+index 9b0eae6..f5d8d3c 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -32,7 +32,7 @@
+             <artifactId>spring-boot-starter-web</artifactId>
+         </dependency>
+
+-        <!-- Jackson for JSON (The Bible / trading_manifest.json) -->
++        <!-- Jackson for JSON (strategy.json / positions.json) -->
+         <dependency>
+             <groupId>com.fasterxml.jackson.core</groupId>
+             <artifactId>jackson-databind</artifactId>
+
+diff --git a/src/test/resources/application-test.properties b/src/test/resources/application-test.properties
+index eec3983..14d2c52 100644
+--- a/src/test/resources/application-test.properties
++++ b/src/test/resources/application-test.properties
+@@ -1,4 +1,5 @@
+-trading.manifest.path=classpath:trading_manifest.json
++trading.strategy.path=classpath:strategy.json
++trading.positions.path=classpath:positions.json
+ kite.api-key=test_api_key
+ kite.api-secret=test_api_secret
+ kite.access-token=placeholder
+
+diff --git a/src/test/resources/application.properties b/src/test/resources/application.properties
+index 3e63e09..37dc674 100644
+--- a/src/test/resources/application.properties
++++ b/src/test/resources/application.properties
+@@ -4,8 +4,9 @@ server.port=8080
+ # Virtual Threads (Java 21)
+ spring.threads.virtual.enabled=true
+
+-# Path to The Bible (trading manifest)
+-trading.manifest.path=trading_manifest.json
++# Paths to strategy and positions files
++trading.strategy.path=strategy.json
++trading.positions.path=positions.json
+
+ # Kite Connect credentials (test stubs)
+ kite.api-key=test_api_key
+
+### src/test/resources/trading_manifest.json
+[Large diff hidden: max line length 584 chars]
+To view this file's diff, run:
+```
+git diff -- src/test/resources/trading_manifest.json
+```
