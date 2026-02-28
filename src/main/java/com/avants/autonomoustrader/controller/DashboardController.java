@@ -1,8 +1,11 @@
 package com.avants.autonomoustrader.controller;
 
 import com.avants.autonomoustrader.dto.DashboardDto;
+import com.avants.autonomoustrader.dto.KiteDto;
+import com.avants.autonomoustrader.service.KiteSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -10,12 +13,18 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/dashboard")
+@RequestMapping("/api")
 public class DashboardController {
 
     private static final Logger log = LoggerFactory.getLogger(DashboardController.class);
 
-    @GetMapping
+    private final KiteSyncService kiteSyncService;
+
+    public DashboardController(KiteSyncService kiteSyncService) {
+        this.kiteSyncService = kiteSyncService;
+    }
+
+    @GetMapping("/dashboard")
     public DashboardDto.DashboardResponse getDashboard() {
         log.info("Serving dashboard data");
 
@@ -58,5 +67,16 @@ public class DashboardController {
         );
 
         return new DashboardDto.DashboardResponse(performance, holdings, strategy);
+    }
+
+    @GetMapping("/portfolio")
+    public ResponseEntity<KiteDto.LivePortfolio> getPortfolio() {
+        log.info("Serving live portfolio data");
+        KiteDto.LivePortfolio portfolio = kiteSyncService.getLivePortfolio();
+        if (portfolio == null) {
+            log.warn("Live portfolio not yet available — sync may not have run");
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(portfolio);
     }
 }
