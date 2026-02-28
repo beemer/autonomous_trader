@@ -6,6 +6,13 @@ The following commands and tools may be executed freely without asking for user 
 - **Version control**: `git` (checkout, add, commit, branch, merge, rebase, status, log, diff, fetch, pull)
 - **GitHub CLI**: `gh` (pr create, pr list, issue, repo, etc.)
 - **General shell**: standard read/inspect commands (`cat`, `find`, `grep`, `echo`, etc.)
+- **Windows PowerShell commands** (all sensible read/write/inspect operations, no approval needed):
+  - File & directory management: `New-Item`, `Remove-Item`, `Copy-Item`, `Move-Item`, `Rename-Item`, `Get-Item`, `Get-ChildItem`, `Set-Location`, `Get-Location`, `Test-Path`, `Resolve-Path`
+  - Content operations: `Get-Content`, `Set-Content`, `Add-Content`, `Clear-Content`, `Out-File`, `Select-String`
+  - Object & pipeline: `Select-Object`, `Where-Object`, `ForEach-Object`, `Sort-Object`, `Group-Object`, `Measure-Object`, `Format-List`, `Format-Table`
+  - Environment & process: `Get-Process`, `Stop-Process`, `Start-Process`, `Get-Service`, `Get-Variable`, `Set-Variable`, `Get-Env`, `$env:` access
+  - Networking & web: `Invoke-WebRequest`, `Invoke-RestMethod`, `Test-NetConnection`
+  - Utilities: `Write-Output`, `Write-Host`, `Write-Error`, `Write-Verbose`, `Clear-Host`, `Split-Path`, `Join-Path`, `Convert-Path`, `Get-Date`, `Start-Sleep`, `Compress-Archive`, `Expand-Archive`
 - **Project config files**: `pom.xml` and `application.properties` may be modified freely without asking for approval.
 
 ## Dependency & Version Policy
