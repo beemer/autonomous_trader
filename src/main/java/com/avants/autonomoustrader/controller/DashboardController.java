@@ -41,11 +41,20 @@ public class DashboardController {
             List<DashboardDto.Holding> holdings;
             double totalPnl = 0.0;
             if (livePortfolio != null && livePortfolio.holdings() != null) {
+                double targetPct = manifest.getRiskParameters() != null ? manifest.getRiskParameters().getTargetPct() : 3.0;
                 holdings = livePortfolio.holdings().stream()
                         .map(h -> {
                             double cost = h.averagePrice() * h.quantity();
                             double pnlPct = cost > 0 ? (h.pnl() / cost) * 100.0 : 0.0;
-                            return new DashboardDto.Holding(h.tradingSymbol(), h.pnl(), pnlPct, "LIVE");
+                            String strategyMatch;
+                            if (pnlPct >= targetPct) {
+                                strategyMatch = "STRONG MATCH";
+                            } else if (pnlPct > 0) {
+                                strategyMatch = "PARTIAL MATCH";
+                            } else {
+                                strategyMatch = "NO MATCH";
+                            }
+                            return new DashboardDto.Holding(h.tradingSymbol(), h.pnl(), pnlPct, strategyMatch);
                         })
                         .toList();
                 totalPnl = livePortfolio.holdings().stream().mapToDouble(KiteDto.HoldingDto::pnl).sum();
