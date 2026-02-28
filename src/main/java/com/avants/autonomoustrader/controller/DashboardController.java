@@ -2,6 +2,8 @@ package com.avants.autonomoustrader.controller;
 
 import com.avants.autonomoustrader.dto.DashboardDto;
 import com.avants.autonomoustrader.dto.KiteDto;
+import com.avants.autonomoustrader.model.TradingManifest;
+import com.avants.autonomoustrader.service.GovernorService;
 import com.avants.autonomoustrader.service.KiteSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -19,54 +22,73 @@ public class DashboardController {
     private static final Logger log = LoggerFactory.getLogger(DashboardController.class);
 
     private final KiteSyncService kiteSyncService;
+    private final GovernorService governorService;
 
-    public DashboardController(KiteSyncService kiteSyncService) {
+    public DashboardController(KiteSyncService kiteSyncService, GovernorService governorService) {
         this.kiteSyncService = kiteSyncService;
+        this.governorService = governorService;
     }
 
     @GetMapping("/dashboard")
-    public DashboardDto.DashboardResponse getDashboard() {
-        log.info("Serving dashboard data");
+    public ResponseEntity<DashboardDto.DashboardResponse> getDashboard() {
+        log.info("Serving dashboard data from manifest");
+        try {
+            TradingManifest manifest = governorService.loadManifest();
+            KiteDto.LivePortfolio livePortfolio = manifest.getLivePortfolio();
+            TradingManifest.TechnicalStrategy ts = manifest.getTechnicalStrategy();
 
-        var performance = new DashboardDto.PerformanceStats(1.24, -0.87, 5.63);
+            // Build holdings from live portfolio
+            List<DashboardDto.Holding> holdings;
+            double totalPnl = 0.0;
+            if (livePortfolio != null && livePortfolio.holdings() != null) {
+                holdings = livePortfolio.holdings().stream()
+                        .map(h -> {
+                            double cost = h.averagePrice() * h.quantity();
+                            double pnlPct = cost > 0 ? (h.pnl() / cost) * 100.0 : 0.0;
+                            return new DashboardDto.Holding(h.tradingSymbol(), h.pnl(), pnlPct, "LIVE");
+                        })
+                        .toList();
+                totalPnl = livePortfolio.holdings().stream().mapToDouble(KiteDto.HoldingDto::pnl).sum();
+            } else {
+                log.warn("No live portfolio in manifest — sync may not have run yet");
+                holdings = List.of();
+            }
 
-        var holdings = List.of(
-                new DashboardDto.Holding("RELIANCE", 4250.00, 2.83, "STRONG MATCH"),
-                new DashboardDto.Holding("TCS", -1800.00, -1.12, "PARTIAL MATCH"),
-                new DashboardDto.Holding("HDFCBANK", 3100.00, 1.95, "STRONG MATCH"),
-                new DashboardDto.Holding("INFY", -950.00, -0.74, "NO MATCH"),
-                new DashboardDto.Holding("ICICIBANK", 2750.00, 2.10, "STRONG MATCH")
-        );
+            // Performance: derive daily from total PnL (placeholder pct until historical data is available)
+            double dailyPct = 0.0;
+            double weeklyPct = 0.0;
+            double monthlyPct = 0.0;
+            if (livePortfolio != null && livePortfolio.holdings() != null) {
+                double totalCost = livePortfolio.holdings().stream()
+                        .mapToDouble(h -> h.averagePrice() * h.quantity())
+                        .sum();
+                dailyPct = totalCost > 0 ? (totalPnl / totalCost) * 100.0 : 0.0;
+            }
+            var performance = new DashboardDto.PerformanceStats(dailyPct, weeklyPct, monthlyPct);
 
-        var indicators = List.of(
-                new DashboardDto.Indicator("EMA", 9, "close"),
-                new DashboardDto.Indicator("EMA", 200, "close"),
-                new DashboardDto.Indicator("MACD", 12, "close"),
-                new DashboardDto.Indicator("MACD_SIGNAL", 9, "close")
-        );
+            // Strategy from manifest
+            List<DashboardDto.Indicator> indicators = ts.getIndicators().stream()
+                    .map(i -> new DashboardDto.Indicator(i.getType(), i.getPeriod(), i.getSource()))
+                    .toList();
+            List<DashboardDto.StrategyRule> entryConditions = ts.getEntryConditions().stream()
+                    .map(DashboardDto.StrategyRule::new)
+                    .toList();
+            List<DashboardDto.StrategyRule> exitConditions = ts.getExitConditions().stream()
+                    .map(DashboardDto.StrategyRule::new)
+                    .toList();
+            var strategy = new DashboardDto.StrategyViewer(
+                    ts.getName(),
+                    ts.getDescription(),
+                    indicators,
+                    entryConditions,
+                    exitConditions
+            );
 
-        var entryConditions = List.of(
-                new DashboardDto.StrategyRule("EMA_9 > EMA_200"),
-                new DashboardDto.StrategyRule("MACD_LINE crosses_above MACD_SIGNAL"),
-                new DashboardDto.StrategyRule("VOLUME > 1.5x 20-period average volume")
-        );
-
-        var exitConditions = List.of(
-                new DashboardDto.StrategyRule("MACD_LINE crosses_below MACD_SIGNAL"),
-                new DashboardDto.StrategyRule("Price closes below EMA_9"),
-                new DashboardDto.StrategyRule("Stop loss hit"),
-                new DashboardDto.StrategyRule("Target hit")
-        );
-
-        var strategy = new DashboardDto.StrategyViewer(
-                "EMA Crossover + MACD Breakout",
-                "Enter long when 9 EMA is above 200 EMA and MACD line crosses above signal line, confirming bullish momentum breakout.",
-                indicators,
-                entryConditions,
-                exitConditions
-        );
-
-        return new DashboardDto.DashboardResponse(performance, holdings, strategy);
+            return ResponseEntity.ok(new DashboardDto.DashboardResponse(performance, holdings, strategy));
+        } catch (IOException e) {
+            log.error("Failed to load manifest for dashboard", e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @GetMapping("/portfolio")
