@@ -8,10 +8,13 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -28,12 +31,15 @@ public class GovernorService {
     private final String strategyPath;
     private final String positionsPath;
     private final ObjectMapper objectMapper;
+    private final ResourceLoader resourceLoader;
 
     public GovernorService(
             @Value("${trading.strategy.path:strategy.json}") String strategyPath,
-            @Value("${trading.positions.path:positions.json}") String positionsPath) {
+            @Value("${trading.positions.path:positions.json}") String positionsPath,
+            ResourceLoader resourceLoader) {
         this.strategyPath = strategyPath;
         this.positionsPath = positionsPath;
+        this.resourceLoader = resourceLoader;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
     }
@@ -42,26 +48,30 @@ public class GovernorService {
      * Loads the strategy manifest (read-only rules) from strategy.json.
      */
     public StrategyManifest loadStrategy() throws IOException {
-        File file = new File(strategyPath);
-        if (!file.exists()) {
-            log.error("strategy.json not found at: {}", file.getAbsolutePath());
-            throw new IOException("strategy.json not found at: " + file.getAbsolutePath());
+        String resourcePath = normalizeResourcePath(strategyPath);
+        Resource resource = resourceLoader.getResource(resourcePath);
+        log.info("Loading strategy from: {}", strategyPath);
+        try (InputStream inputStream = resource.getInputStream()) {
+            return objectMapper.readValue(inputStream, StrategyManifest.class);
+        } catch (IOException e) {
+            log.error("strategy.json not found at: {}", strategyPath);
+            throw new IOException("strategy.json not found at: " + strategyPath, e);
         }
-        log.info("Loading strategy from: {}", file.getAbsolutePath());
-        return objectMapper.readValue(file, StrategyManifest.class);
     }
 
     /**
      * Loads the positions manifest (live portfolio) from positions.json.
      */
     public PositionsManifest loadPositions() throws IOException {
-        File file = new File(positionsPath);
-        if (!file.exists()) {
-            log.warn("positions.json not found at: {} — returning empty manifest", file.getAbsolutePath());
+        String resourcePath = normalizeResourcePath(positionsPath);
+        Resource resource = resourceLoader.getResource(resourcePath);
+        log.info("Loading positions from: {}", positionsPath);
+        try (InputStream inputStream = resource.getInputStream()) {
+            return objectMapper.readValue(inputStream, PositionsManifest.class);
+        } catch (IOException e) {
+            log.warn("positions.json not found at: {} — returning empty manifest", positionsPath);
             return new PositionsManifest();
         }
-        log.info("Loading positions from: {}", file.getAbsolutePath());
-        return objectMapper.readValue(file, PositionsManifest.class);
     }
 
     /**
@@ -72,10 +82,23 @@ public class GovernorService {
         PositionsManifest manifest = new PositionsManifest();
         manifest.setLastUpdated(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         manifest.setLivePortfolio(livePortfolio);
-        objectMapper.writeValue(new File(positionsPath), manifest);
-        log.info("positions.json saved — {} holdings, {} positions",
-                livePortfolio.holdings() != null ? livePortfolio.holdings().size() : 0,
-                livePortfolio.positions() != null ? livePortfolio.positions().size() : 0);
+
+        String resourcePath = normalizeResourcePath(positionsPath);
+        Resource resource = resourceLoader.getResource(resourcePath);
+
+        // Writing to a classpath resource (e.g., inside a JAR) is not supported.
+        // We attempt to get the File handle if it's a direct file resource.
+        try {
+            File file = resource.getFile();
+            objectMapper.writeValue(file, manifest);
+            log.info("positions.json saved to: {} — {} holdings, {} positions",
+                    file.getAbsolutePath(),
+                    livePortfolio.holdings() != null ? livePortfolio.holdings().size() : 0,
+                    livePortfolio.positions() != null ? livePortfolio.positions().size() : 0);
+        } catch (IOException e) {
+            log.error("Cannot save positions — path '{}' is not a writable file (might be a classpath resource in a JAR)", positionsPath);
+            throw new IOException("Cannot save positions to non-writable path: " + positionsPath, e);
+        }
     }
 
     /**
@@ -99,5 +122,19 @@ public class GovernorService {
             log.info("Portfolio   : (not yet synced)");
         }
         log.info("==================================");
+    }
+
+    /**
+     * Normalizes a path to work with Spring's ResourceLoader.
+     * If the path starts with "classpath:", "file:", "http:", or "https:", it's returned as-is.
+     * Otherwise, it's treated as an absolute file path and prefixed with "file:".
+     */
+    private String normalizeResourcePath(String path) {
+        if (path.startsWith("classpath:") || path.startsWith("file:") ||
+            path.startsWith("http:") || path.startsWith("https:")) {
+            return path;
+        }
+        // Treat as absolute file path
+        return "file:" + path;
     }
 }

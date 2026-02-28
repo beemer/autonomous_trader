@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.ResourceLoader;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,12 +27,14 @@ class GovernorServiceTest {
     private File strategyFile;
     private File positionsFile;
     private ObjectMapper objectMapper;
+    private ResourceLoader resourceLoader;
 
     @BeforeEach
     void setUp() throws IOException {
         strategyFile = tempDir.resolve("strategy.json").toFile();
         positionsFile = tempDir.resolve("positions.json").toFile();
-        governorService = new GovernorService(strategyFile.getAbsolutePath(), positionsFile.getAbsolutePath());
+        resourceLoader = new DefaultResourceLoader();
+        governorService = new GovernorService(strategyFile.getAbsolutePath(), positionsFile.getAbsolutePath(), resourceLoader);
         objectMapper = new ObjectMapper();
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
 
@@ -80,7 +84,8 @@ class GovernorServiceTest {
     void shouldThrowIOExceptionWhenStrategyFileMissing() {
         GovernorService noFileService = new GovernorService(
                 tempDir.resolve("missing_strategy.json").toString(),
-                positionsFile.getAbsolutePath()
+                positionsFile.getAbsolutePath(),
+                resourceLoader
         );
         assertThrows(IOException.class, noFileService::loadStrategy);
     }

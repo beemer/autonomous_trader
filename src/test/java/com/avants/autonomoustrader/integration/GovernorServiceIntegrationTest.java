@@ -2,9 +2,11 @@ package com.avants.autonomoustrader.integration;
 
 import com.avants.autonomoustrader.model.StrategyManifest;
 import com.avants.autonomoustrader.service.GovernorService;
+import com.zerodhatech.kiteconnect.KiteConnect;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
@@ -70,5 +72,16 @@ class GovernorServiceIntegrationTest {
     @Test
     void shouldPrintManifestSummaryWithoutException() {
         assertDoesNotThrow(() -> governorService.printManifestSummary());
+    }
+
+    @Test
+    void shouldSaveAndLoadPositionsRoundTrip() throws IOException {
+        com.avants.autonomoustrader.dto.KiteDto.LivePortfolio portfolio =
+                new com.avants.autonomoustrader.dto.KiteDto.LivePortfolio(java.util.List.of(), java.util.List.of());
+        governorService.savePositions(portfolio);
+
+        com.avants.autonomoustrader.model.PositionsManifest loaded = governorService.loadPositions();
+        assertNotNull(loaded);
+        assertNotNull(loaded.getLastUpdated());
     }
 }
