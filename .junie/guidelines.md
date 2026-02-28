@@ -1,19 +1,36 @@
 ## Allowed Actions (No Approval Required)
 
-The following commands and tools may be executed freely without asking for user approval:
-- **File operations**: `mv`, `cp`, `ls`, `cd`, `mkdir`, `rm` (targeted, non-destructive)
-- **Build tools**: `mvn` (Maven), `gradle`, `npm`, `pip`
-- **Version control**: `git` (checkout, add, commit, branch, merge, rebase, status, log, diff, fetch, pull)
-- **GitHub CLI**: `gh` (pr create, pr list, issue, repo, etc.)
-- **General shell**: standard read/inspect commands (`cat`, `find`, `grep`, `echo`, etc.)
-- **Windows PowerShell commands** (all sensible read/write/inspect operations, no approval needed):
-  - File & directory management: `New-Item`, `Remove-Item`, `Copy-Item`, `Move-Item`, `Rename-Item`, `Get-Item`, `Get-ChildItem`, `Set-Location`, `Get-Location`, `Test-Path`, `Resolve-Path`
-  - Content operations: `Get-Content`, `Set-Content`, `Add-Content`, `Clear-Content`, `Out-File`, `Select-String`
-  - Object & pipeline: `Select-Object`, `Where-Object`, `ForEach-Object`, `Sort-Object`, `Group-Object`, `Measure-Object`, `Format-List`, `Format-Table`
-  - Environment & process: `Get-Process`, `Stop-Process`, `Start-Process`, `Get-Service`, `Get-Variable`, `Set-Variable`, `Get-Env`, `$env:` access
-  - Networking & web: `Invoke-WebRequest`, `Invoke-RestMethod`, `Test-NetConnection`
-  - Utilities: `Write-Output`, `Write-Host`, `Write-Error`, `Write-Verbose`, `Clear-Host`, `Split-Path`, `Join-Path`, `Convert-Path`, `Get-Date`, `Start-Sleep`, `Compress-Archive`, `Expand-Archive`
-- **Project config files**: `pom.xml` and `application.properties` may be modified freely without asking for approval.
+**All of the following commands and tool calls MUST be executed immediately without asking for user approval. Do not prompt the user before running any of these.**
+
+### File Operations
+`mv`, `cp`, `ls`, `cd`, `mkdir`, `rm` (targeted, non-destructive) — execute freely.
+
+### Build Tools
+`mvn` (Maven), `gradle`, `npm`, `pip` — execute freely, including `mvn clean install`, `mvn spring-boot:run`, `npm install`, `npm run build`, etc.
+
+### Version Control
+`git` — all subcommands: `checkout`, `add`, `commit`, `branch`, `merge`, `rebase`, `status`, `log`, `diff`, `fetch`, `pull` — execute freely.
+
+### GitHub CLI
+`gh` — all subcommands: `pr create`, `pr list`, `issue`, `repo`, etc. — execute freely.
+
+### General Shell
+All standard read/inspect commands: `cat`, `find`, `grep`, `echo`, `head`, `tail`, `wc`, `sort`, `uniq`, `diff`, `which`, `pwd` — execute freely.
+
+### Windows PowerShell Commands
+All of the following PowerShell cmdlets and operations are pre-approved — execute immediately without asking:
+
+- **File & directory management**: `New-Item`, `Remove-Item`, `Copy-Item`, `Move-Item`, `Rename-Item`, `Get-Item`, `Get-ChildItem`, `Set-Location`, `Get-Location`, `Test-Path`, `Resolve-Path`
+- **Content operations**: `Get-Content`, `Set-Content`, `Add-Content`, `Clear-Content`, `Out-File`, `Select-String`
+- **Object & pipeline**: `Select-Object`, `Where-Object`, `ForEach-Object`, `Sort-Object`, `Group-Object`, `Measure-Object`, `Format-List`, `Format-Table`
+- **Environment & process**: `Get-Process`, `Stop-Process`, `Start-Process`, `Get-Service`, `Get-Variable`, `Set-Variable`, `$env:` access and assignment
+- **Networking & web**: `Invoke-WebRequest`, `Invoke-RestMethod`, `Test-NetConnection` — execute freely, including fetching Maven Central, npm registry, GitHub APIs, or any external URL for version checks or documentation.
+- **Utilities**: `Write-Output`, `Write-Host`, `Write-Error`, `Write-Verbose`, `Clear-Host`, `Split-Path`, `Join-Path`, `Convert-Path`, `Get-Date`, `Start-Sleep`, `Compress-Archive`, `Expand-Archive`
+
+### Project Config Files
+`pom.xml` and `application.properties` — read and modify freely without asking for approval.
+
+---
 
 ## Logging Standards
 
@@ -29,11 +46,15 @@ The following commands and tools may be executed freely without asking for user 
 - Wrap `log.debug`/`log.trace` calls in `if (log.isDebugEnabled())` guards only when building the message is itself expensive (e.g., serialisation).
 - Always log exceptions with the throwable as the last argument: `log.error("Failed to load manifest", e);`
 
+---
+
 ## Dependency & Version Policy
 
 - Always use the **latest stable releases** of all binaries, libraries, plugins, and frameworks (Spring Boot, Maven plugins, Jackson, Kite Connect SDK, etc.).
-- Before adding or updating a dependency, verify the latest stable version from Maven Central or the official source.
+- Before adding or updating a dependency, verify the latest stable version from Maven Central or the official source (use `Invoke-WebRequest` or `Invoke-RestMethod` freely — no approval needed).
 - Do **not** use snapshot, alpha, beta, or release-candidate versions unless explicitly instructed by the user.
+
+---
 
 ## Git Workflow Rules
 
