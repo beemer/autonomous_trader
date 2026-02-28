@@ -1,4 +1,3 @@
-import { useState } from 'react'
 
 const DistanceBadge = ({ distancePct }) => {
   const isClose = Math.abs(distancePct) < 2
@@ -46,28 +45,7 @@ const RecommendationCard = ({ symbol, currentPrice, ltp, ema200, distancePct }) 
   )
 }
 
-export default function InvestmentAdvisor() {
-  const [candidates, setCandidates] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-
-  const handleScanNifty50 = async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/v1/advice/top-candidates')
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      const data = await response.json()
-      setCandidates(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+export default function InvestmentAdvisor({ candidates, loading, error, onScan }) {
 
   return (
     <div className="space-y-6">
@@ -80,7 +58,7 @@ export default function InvestmentAdvisor() {
           </p>
         </div>
         <button
-          onClick={handleScanNifty50}
+          onClick={onScan}
           disabled={loading}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-semibold px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2"
         >

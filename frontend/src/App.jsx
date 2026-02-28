@@ -4,6 +4,27 @@ import InvestmentAdvisor from './components/InvestmentAdvisor'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('portfolio')
+  const [advisorCandidates, setAdvisorCandidates] = useState(null)
+  const [advisorLoading, setAdvisorLoading] = useState(false)
+  const [advisorError, setAdvisorError] = useState(null)
+
+  const handleScanNifty50 = async () => {
+    setAdvisorLoading(true)
+    setAdvisorError(null)
+
+    try {
+      const response = await fetch('/api/v1/advice/top-candidates')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      const data = await response.json()
+      setAdvisorCandidates(data)
+    } catch (err) {
+      setAdvisorError(err.message)
+    } finally {
+      setAdvisorLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 font-mono">
@@ -55,7 +76,14 @@ export default function App() {
       {/* Tab Content */}
       <main className="p-6">
         {activeTab === 'portfolio' && <PortfolioDashboard />}
-        {activeTab === 'advisor' && <InvestmentAdvisor />}
+        {activeTab === 'advisor' && (
+          <InvestmentAdvisor
+            candidates={advisorCandidates}
+            loading={advisorLoading}
+            error={advisorError}
+            onScan={handleScanNifty50}
+          />
+        )}
       </main>
     </div>
   )
