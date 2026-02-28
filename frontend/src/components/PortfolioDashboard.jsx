@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const KITE_LOGIN_URL = 'http://localhost:8080/api/auth/login'
+const KITE_LOGIN_URL = 'http://127.0.0.1:8080/api/auth/login'
 
 const StatCard = ({ label, value }) => {
   const isPositive = value >= 0

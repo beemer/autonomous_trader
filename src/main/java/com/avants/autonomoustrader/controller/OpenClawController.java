@@ -61,7 +61,7 @@ public class OpenClawController {
                 summary.append(String.format("%d. %s at ₹%.2f (%.2f%% from EMA 200)\n",
                         i + 1,
                         candidate.symbol(),
-                        candidate.ltp(),
+                        candidate.currentPrice(),
                         candidate.distancePct()));
             }
 
@@ -103,7 +103,7 @@ public class OpenClawController {
 
             CandidateDto topPick = candidates.get(0);
             String summaryText = String.format("Top pick is %s at ₹%.2f (%.2f%% from EMA 200)",
-                    topPick.symbol(), topPick.ltp(), topPick.distancePct());
+                    topPick.symbol(), topPick.currentPrice(), topPick.distancePct());
 
             log.info("Returning JSON summary to OpenClaw: {}", summaryText);
             return ResponseEntity.ok(new SummaryResponse(
