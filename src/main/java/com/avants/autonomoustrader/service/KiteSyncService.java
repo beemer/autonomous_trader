@@ -13,9 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.awt.Desktop;
 import java.io.IOException;
-import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -74,8 +72,7 @@ public class KiteSyncService {
     public void syncPortfolio() {
         String accessToken = kiteConnect.getAccessToken();
         if (accessToken == null || accessToken.equals("placeholder") || accessToken.equals("your_access_token_here")) {
-            log.warn("Skipping portfolio sync — access token is not set. Complete OAuth handshake at /api/auth/callback first.");
-            triggerManualLogin();
+            log.warn("Skipping portfolio sync — access token is not set. Complete OAuth handshake via the UI login flow.");
             return;
         }
         log.info("Starting Kite portfolio sync...");
@@ -102,30 +99,11 @@ public class KiteSyncService {
         } catch (Exception e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
             if (cause instanceof KiteException ke && ke.code == 403) {
-                log.warn("Kite session expired (HTTP 403) — triggering manual login");
+                log.warn("Kite session expired (HTTP 403) — UI login required");
                 sessionExpired.set(true);
-                triggerManualLogin();
             } else {
                 log.error("Portfolio sync failed", e);
             }
-        }
-    }
-
-    /**
-     * Opens the Kite login URL in the system default browser so the user can
-     * complete the OAuth handshake without manually constructing the URL.
-     */
-    public void triggerManualLogin() {
-        String loginUrl = "https://kite.trade/connect/login?v=3&api_key=" + apiKey;
-        log.info("Opening Kite login URL in browser: {}", loginUrl);
-        try {
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                Desktop.getDesktop().browse(URI.create(loginUrl));
-            } else {
-                log.warn("Desktop browsing not supported on this platform — please open manually: {}", loginUrl);
-            }
-        } catch (IOException e) {
-            log.error("Failed to open browser for Kite login", e);
         }
     }
 

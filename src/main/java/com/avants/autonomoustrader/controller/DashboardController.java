@@ -5,6 +5,7 @@ import com.avants.autonomoustrader.dto.KiteDto;
 import com.avants.autonomoustrader.model.TradingManifest;
 import com.avants.autonomoustrader.service.GovernorService;
 import com.avants.autonomoustrader.service.KiteSyncService;
+import com.zerodhatech.kiteconnect.KiteConnect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -23,16 +24,22 @@ public class DashboardController {
 
     private final KiteSyncService kiteSyncService;
     private final GovernorService governorService;
+    private final KiteConnect kiteConnect;
 
-    public DashboardController(KiteSyncService kiteSyncService, GovernorService governorService) {
+    public DashboardController(KiteSyncService kiteSyncService, GovernorService governorService, KiteConnect kiteConnect) {
         this.kiteSyncService = kiteSyncService;
         this.governorService = governorService;
+        this.kiteConnect = kiteConnect;
     }
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardDto.DashboardResponse> getDashboard() {
-        if (kiteSyncService.isSessionExpired()) {
-            log.warn("Dashboard request rejected — Kite session is expired");
+        String accessToken = kiteConnect.getAccessToken();
+        if (accessToken == null || accessToken.isBlank()
+                || accessToken.equals("placeholder")
+                || accessToken.equals("your_access_token_here")
+                || kiteSyncService.isSessionExpired()) {
+            log.warn("Dashboard request rejected — no active Kite session");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         log.info("Serving live manifest to UI...");
