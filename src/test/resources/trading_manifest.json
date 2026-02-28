@@ -1,63 +1,38 @@
 {
-  "manifest_version": "1.0.0",
-  "last_updated": "2026-02-28T12:00:00",
-  "universe": {
-    "name": "Nifty 50",
-    "exchange": "NSE",
-    "symbols": [
-      "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
-      "HINDUNILVR", "ITC", "SBIN", "BHARTIARTL", "KOTAKBANK",
-      "LT", "AXISBANK", "ASIANPAINT", "MARUTI", "TITAN",
-      "SUNPHARMA", "ULTRACEMCO", "BAJFINANCE", "WIPRO", "NESTLEIND",
-      "POWERGRID", "NTPC", "TECHM", "HCLTECH", "ONGC",
-      "TATAMOTORS", "TATASTEEL", "JSWSTEEL", "ADANIENT", "ADANIPORTS",
-      "COALINDIA", "DIVISLAB", "DRREDDY", "CIPLA", "APOLLOHOSP",
-      "BAJAJFINSV", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO", "M&M",
-      "BRITANNIA", "GRASIM", "HINDALCO", "INDUSINDBK", "SBILIFE",
-      "HDFCLIFE", "BPCL", "IOC", "UPL", "TATACONSUM"
-    ]
+  "manifest_version" : "1.0.0",
+  "last_updated" : "2026-01-01T00:00:00",
+  "universe" : {
+    "name" : "Nifty 50",
+    "exchange" : "NSE",
+    "symbols" : [ "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR", "ITC", "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK", "ASIANPAINT", "MARUTI", "TITAN", "SUNPHARMA", "ULTRACEMCO", "BAJFINANCE", "WIPRO", "NESTLEIND", "POWERGRID", "NTPC", "TECHM", "HCLTECH", "ONGC", "TATAMOTORS", "TATASTEEL", "JSWSTEEL", "ADANIENT", "ADANIPORTS", "COALINDIA", "DIVISLAB", "DRREDDY", "CIPLA", "APOLLOHOSP", "BAJAJFINSV", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO", "M&M", "BRITANNIA", "GRASIM", "HINDALCO", "INDUSINDBK", "SBILIFE", "HDFCLIFE", "BPCL", "IOC", "UPL", "TATACONSUM" ]
   },
-  "technical_strategy": {
-    "name": "EMA Crossover + MACD Breakout",
-    "description": "Enter long when 9 EMA is above 200 EMA and MACD line crosses above signal line, confirming bullish momentum breakout.",
-    "indicators": [
-      {
-        "type": "EMA",
-        "period": 9,
-        "source": "close"
-      },
-      {
-        "type": "EMA",
-        "period": 200,
-        "source": "close"
-      },
-      {
-        "type": "MACD",
-        "period": 12,
-        "source": "close"
-      },
-      {
-        "type": "MACD_SIGNAL",
-        "period": 9,
-        "source": "close"
-      }
-    ],
-    "entry_conditions": [
-      "EMA_9 > EMA_200",
-      "MACD_LINE crosses_above MACD_SIGNAL",
-      "VOLUME > 1.5x 20-period average volume"
-    ],
-    "exit_conditions": [
-      "MACD_LINE crosses_below MACD_SIGNAL",
-      "Price closes below EMA_9",
-      "Stop loss hit",
-      "Target hit"
-    ]
+  "technical_strategy" : {
+    "name" : "EMA Crossover + MACD Breakout",
+    "description" : "Enter long when 9 EMA is above 200 EMA and MACD line crosses above signal line, confirming bullish momentum breakout.",
+    "indicators" : [ {
+      "type" : "EMA",
+      "period" : 9,
+      "source" : "close"
+    }, {
+      "type" : "EMA",
+      "period" : 200,
+      "source" : "close"
+    }, {
+      "type" : "MACD",
+      "period" : 12,
+      "source" : "close"
+    }, {
+      "type" : "MACD_SIGNAL",
+      "period" : 9,
+      "source" : "close"
+    } ],
+    "entry_conditions" : [ "EMA_9 > EMA_200", "MACD_LINE crosses_above MACD_SIGNAL", "VOLUME > 1.5x 20-period average volume" ],
+    "exit_conditions" : [ "MACD_LINE crosses_below MACD_SIGNAL", "Price closes below EMA_9", "Stop loss hit", "Target hit" ]
   },
-  "risk_parameters": {
-    "max_capital_per_trade_pct": 5.0,
-    "max_open_positions": 5,
-    "stop_loss_pct": 1.5,
-    "target_pct": 3.0
+  "risk_parameters" : {
+    "max_capital_per_trade_pct" : 5.0,
+    "max_open_positions" : 5,
+    "stop_loss_pct" : 1.5,
+    "target_pct" : 3.0
   }
 }
