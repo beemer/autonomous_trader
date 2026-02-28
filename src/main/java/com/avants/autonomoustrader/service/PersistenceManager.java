@@ -1,8 +1,8 @@
 package com.avants.autonomoustrader.service;
 
 import com.avants.autonomoustrader.dto.KiteDto;
-import com.avants.autonomoustrader.model.PositionsManifest;
-import com.avants.autonomoustrader.model.StrategyManifest;
+import com.avants.autonomoustrader.model.LivePortfolio;
+import com.avants.autonomoustrader.model.TradingStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,15 +19,15 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @Service
-public class GovernorService {
+public class PersistenceManager {
 
-    private static final Logger log = LoggerFactory.getLogger(GovernorService.class);
+    private static final Logger log = LoggerFactory.getLogger(PersistenceManager.class);
 
     private final Path strategyPath;
     private final Path positionsPath;
     private final ObjectMapper objectMapper;
 
-    public GovernorService(
+    public PersistenceManager(
             @Value("${trading.strategy.path:strategy.json}") String strategyPath,
             @Value("${trading.positions.path:positions.json}") String positionsPath) {
         this.strategyPath = Paths.get(strategyPath);
@@ -42,28 +41,28 @@ public class GovernorService {
      * Loads Strategy (The Rules).
      * If missing, it tries to copy a default from classpath to disk.
      */
-    public StrategyManifest loadStrategy() throws IOException {
+    public TradingStrategy loadStrategy() throws IOException {
         if (!Files.exists(strategyPath)) {
             log.warn("Strategy file not found at {}. Attempting to seed from defaults...", strategyPath);
             seedDefaultStrategy();
         }
-        return objectMapper.readValue(strategyPath.toFile(), StrategyManifest.class);
+        return objectMapper.readValue(strategyPath.toFile(), TradingStrategy.class);
     }
 
     /**
      * Loads Positions (The Money).
      * If missing, returns empty - allowing for "Delete to Refresh" testing.
      */
-    public PositionsManifest loadPositions() {
+    public LivePortfolio loadPositions() {
         if (!Files.exists(positionsPath)) {
             log.info("positions.json missing - returning empty state.");
-            return new PositionsManifest();
+            return new LivePortfolio();
         }
         try {
-            return objectMapper.readValue(positionsPath.toFile(), PositionsManifest.class);
+            return objectMapper.readValue(positionsPath.toFile(), LivePortfolio.class);
         } catch (IOException e) {
             log.error("Failed to parse positions.json, returning empty.", e);
-            return new PositionsManifest();
+            return new LivePortfolio();
         }
     }
 
@@ -71,7 +70,7 @@ public class GovernorService {
      * Persists only position/portfolio data.
      */
     public void savePositions(KiteDto.LivePortfolio livePortfolio) throws IOException {
-        PositionsManifest manifest = new PositionsManifest();
+        LivePortfolio manifest = new LivePortfolio();
         manifest.setLastUpdated(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         manifest.setLivePortfolio(livePortfolio);
 

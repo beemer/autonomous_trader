@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Contains the live portfolio (holdings and positions) synced from Zerodha.
  * Only KiteSyncService writes to this file; strategy rules are never touched here.
  */
-public class PositionsManifest {
+public class LivePortfolio {
 
     @JsonProperty("last_updated")
     private String lastUpdated;
