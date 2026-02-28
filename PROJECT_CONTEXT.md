@@ -10,7 +10,7 @@ A **two-component autonomous trading system** for Indian equity markets (NSE/BSE
 
 | Component | Name | Tech | Role |
 |---|---|---|---|
-| This repo | **The Governor** (The Librarian) | Java 21 + Spring Boot | Owns strategy, universe, and risk rules. Publishes `trading_manifest.json`. |
+| This repo | **The Governor** (The Librarian) | Java 21 + Spring Boot 3 + React frontend | Owns strategy, universe, risk rules, live portfolio sync. Publishes `trading_manifest.json`. |
 | Separate repo | **The Executioner** (OpenClaw) | Autonomous agent | Reads the manifest, fetches live data, asks Claude for trade approval, executes via Kite API. |
 
 ---
@@ -24,6 +24,7 @@ The single most important file in this repo. It is the contract between The Gove
 | `universe` | List of eligible trading instruments (e.g., Nifty 50 symbols on NSE) |
 | `technicalStrategy` | Strategy rules: EMA crossover (9 EMA > 200 EMA), MACD breakout conditions |
 | `riskParameters` | Hard limits: max capital per trade, max open positions, stop-loss %, target % |
+| `livePortfolio` | Live holdings and net positions synced every minute from Zerodha Kite |
 | `metadata` | Version, last-updated timestamp, active flag |
 
 ---
@@ -32,25 +33,39 @@ The single most important file in this repo. It is the contract between The Gove
 
 ```
 autonomous_trader/
-├── pom.xml                                          # Maven build (Java 21, Spring Boot, Jackson, Kite SDK)
-├── trading_manifest.json                            # "The Bible" — read by OpenClaw at runtime
-├── README.md                                        # Full architecture documentation
-├── PROJECT_CONTEXT.md                               # This file — agent/contributor onboarding
+├── pom.xml                                              # Maven build (Java 21, Spring Boot 3, Jackson, Kite SDK)
+├── trading_manifest.json                                # "The Bible" — read by OpenClaw at runtime
+├── README.md                                            # Full architecture documentation
+├── PROJECT_CONTEXT.md                                   # This file — agent/contributor onboarding
 ├── .junie/
-│   └── guidelines.md                                # Agent behaviour rules (approved actions, versioning policy, git workflow)
+│   └── guidelines.md                                    # Agent behaviour rules (approved actions, versioning policy, git workflow)
+├── frontend/                                            # React (Vite) dashboard UI
+│   └── src/
+│       ├── App.jsx                                      # Root component
+│       └── components/
+│           └── Dashboard.jsx                            # Live portfolio + strategy viewer
 └── src/
     ├── main/
     │   ├── java/com/avants/autonomoustrader/
-    │   │   ├── AutonomousTraderApplication.java      # Spring Boot entry point (@SpringBootApplication)
+    │   │   ├── AutonomousTraderApplication.java          # Spring Boot entry point (@SpringBootApplication, @EnableScheduling)
+    │   │   ├── config/
+    │   │   │   ├── AsyncConfig.java                      # Java 21 Virtual Thread executor bean
+    │   │   │   └── KiteConfig.java                       # KiteConnect bean (reads KITE_API_KEY, KITE_ACCESS_TOKEN)
+    │   │   ├── controller/
+    │   │   │   └── DashboardController.java              # REST: GET /api/dashboard, GET /api/portfolio
+    │   │   ├── dto/
+    │   │   │   ├── DashboardDto.java                     # Records: DashboardResponse, PerformanceStats, Holding, StrategyViewer
+    │   │   │   └── KiteDto.java                          # Records: LivePortfolio, HoldingDto, PositionDto
     │   │   ├── model/
-    │   │   │   └── TradingManifest.java              # POJO model for The Bible (Universe, Strategy, Risk)
+    │   │   │   └── TradingManifest.java                  # POJO model for The Bible (Universe, Strategy, Risk, LivePortfolio)
     │   │   └── service/
-    │   │       └── GovernorService.java              # Load / save / summarize trading_manifest.json
+    │   │       ├── GovernorService.java                  # Load / save / summarize trading_manifest.json
+    │   │       └── KiteSyncService.java                  # Scheduled: fetches holdings + positions from Kite every 60s via Virtual Threads
     │   └── resources/
-    │       └── application.properties               # App config: port 8080, manifest file path
+    │       └── application.properties                    # Port 8080, manifest path, Kite credentials, logging level
     └── test/
         └── java/com/avants/autonomoustrader/
-            └── AutonomousTraderApplicationTests.java # Spring context load test
+            └── AutonomousTraderApplicationTests.java     # Spring context load test
 ```
 
 ---
@@ -59,11 +74,33 @@ autonomous_trader/
 
 | Dependency | Purpose |
 |---|---|
+| `org.springframework.boot:spring-boot-starter-web` | Spring MVC REST API |
 | `org.springframework.boot:spring-boot-starter` | Core Spring Boot framework |
 | `com.fasterxml.jackson.core:jackson-databind` | JSON serialization/deserialization of the manifest |
-| `com.zerodhatech.kiteconnect:kiteconnect` | Zerodha Kite Connect Java SDK (used by Executioner; included here for shared model compatibility) |
+| `com.zerodhatech.kiteconnect:kiteconnect` | Zerodha Kite Connect Java SDK — live holdings, positions |
 
 > **Policy:** Always use the latest stable release of all dependencies. See `.junie/guidelines.md`.
+
+---
+
+## Key Configuration (`application.properties`)
+
+| Property | Default | Purpose |
+|---|---|---|
+| `server.port` | `8080` | HTTP port |
+| `spring.threads.virtual.enabled` | `true` | Enables Java 21 Virtual Threads |
+| `trading.manifest.path` | `trading_manifest.json` | Path to The Bible |
+| `kite.api-key` | `${KITE_API_KEY}` | Zerodha API key (set via env var) |
+| `kite.access-token` | `${KITE_ACCESS_TOKEN}` | Zerodha access token (set via env var) |
+
+---
+
+## REST API
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/dashboard` | Returns dashboard data: performance stats, holdings with strategy match, strategy viewer |
+| `GET` | `/api/portfolio` | Returns live portfolio (holdings + net positions) from last Kite sync; 204 if not yet synced |
 
 ---
 
@@ -74,13 +111,18 @@ autonomous_trader/
         ↓
 2. GovernorService writes updated trading_manifest.json ("The Bible")
         ↓
-3. OpenClaw (The Executioner) reads trading_manifest.json on each cycle
+3. KiteSyncService fetches live holdings + positions from Zerodha every 60s
+   (parallel CompletableFuture on Java 21 Virtual Threads)
         ↓
-4. OpenClaw fetches live market data for instruments in `universe`
+4. Live portfolio is written back into trading_manifest.json
         ↓
-5. OpenClaw sends data + strategy rules to Claude (AI) for trade approval
+5. OpenClaw (The Executioner) reads trading_manifest.json on each cycle
         ↓
-6. If Claude approves → OpenClaw executes trade via Zerodha Kite Connect API
+6. OpenClaw fetches live market data for instruments in `universe`
+        ↓
+7. OpenClaw sends data + strategy rules to Claude (AI) for trade approval
+        ↓
+8. If Claude approves → OpenClaw executes trade via Zerodha Kite Connect API
 ```
 
 ---
@@ -88,13 +130,20 @@ autonomous_trader/
 ## Running The Governor Locally
 
 ```bash
-# Build
-mvn clean package
+# Set Kite credentials
+export KITE_API_KEY=your_api_key
+export KITE_ACCESS_TOKEN=your_access_token
 
-# Run
+# Build and run backend
+mvn clean package
 mvn spring-boot:run
 
-# App starts on http://localhost:8080
+# Backend starts on http://localhost:8080
+
+# Run frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
 ```
 
 ---
@@ -112,9 +161,15 @@ mvn spring-boot:run
 
 | Item | Status |
 |---|---|
-| Governor Spring Boot scaffold | ✅ Complete (`feat/initial-setup`) |
+| Governor Spring Boot scaffold | ✅ Complete |
 | `trading_manifest.json` (Nifty 50 + EMA/MACD strategy) | ✅ Complete |
-| Governor REST API (CRUD for manifest) | 🔲 Not started |
+| Java 21 Virtual Thread executor (`AsyncConfig`) | ✅ Complete |
+| Zerodha KiteConnect config (`KiteConfig`) | ✅ Complete |
+| Live portfolio sync every 60s (`KiteSyncService`) | ✅ Complete |
+| REST API: `/api/dashboard`, `/api/portfolio` (`DashboardController`) | ✅ Complete |
+| DTOs: `KiteDto`, `DashboardDto` | ✅ Complete |
+| React frontend dashboard (`frontend/`) | ✅ Complete |
+| Governor REST API (full CRUD for manifest) | 🔲 Not started |
 | OpenClaw Executioner | 🔲 Separate repo, not started |
 | Claude integration in Executioner | 🔲 Not started |
 | Zerodha Kite live order execution | 🔲 Not started |
