@@ -55,8 +55,24 @@ export default function Dashboard() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400 animate-pulse">
-        Loading Trading Terminal…
+      <div className="min-h-screen bg-gray-950 text-gray-100 font-mono p-6 space-y-8">
+        <header className="flex items-center justify-between border-b border-gray-700 pb-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-white">⚡ Avants Trading Terminal</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Strategy Governor Dashboard</p>
+          </div>
+          <span className="text-xs text-yellow-400 border border-yellow-700 rounded px-2 py-1 animate-pulse">
+            ● AUTHENTICATING
+          </span>
+        </header>
+        <section>
+          <h2 className="text-xs text-gray-500 uppercase tracking-widest mb-3">Holdings</h2>
+          <div className="overflow-x-auto rounded-xl border border-gray-700">
+            <div className="bg-gray-800 text-gray-400 text-sm text-center py-10 animate-pulse">
+              ⏳ Portfolio is loading — completing OAuth handshake…
+            </div>
+          </div>
+        </section>
       </div>
     )
   }
