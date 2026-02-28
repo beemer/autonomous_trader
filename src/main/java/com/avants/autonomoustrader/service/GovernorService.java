@@ -5,10 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
-
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -25,11 +27,7 @@ public class GovernorService {
     private String manifestPath;
     private final ObjectMapper objectMapper;
 
-    public GovernorService() {
-        this("trading_manifest.json");
-    }
-
-    public GovernorService(String manifestPath) {
+    public GovernorService(@Value("${trading.manifest.path:trading_manifest.json}") String manifestPath) {
         this.manifestPath = manifestPath;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
@@ -42,6 +40,18 @@ public class GovernorService {
      * @throws IOException if the file cannot be read or parsed
      */
     public TradingManifest loadManifest() throws IOException {
+        if (manifestPath.startsWith("classpath:")) {
+            String classpathLocation = manifestPath.substring("classpath:".length());
+            ClassPathResource resource = new ClassPathResource(classpathLocation);
+            if (!resource.exists()) {
+                log.error("trading_manifest.json not found on classpath at: {}", classpathLocation);
+                throw new IOException("trading_manifest.json not found at: " + classpathLocation);
+            }
+            log.info("Loading manifest from classpath: {}", classpathLocation);
+            try (InputStream is = resource.getInputStream()) {
+                return objectMapper.readValue(is, TradingManifest.class);
+            }
+        }
         File manifestFile = new File(manifestPath);
         if (!manifestFile.exists()) {
             log.error("trading_manifest.json not found at: {}", manifestFile.getAbsolutePath());
