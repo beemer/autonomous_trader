@@ -31,3 +31,5 @@ target/
 *.iml
 *.iws
 *.ipr
+
+trading_manifest.json
