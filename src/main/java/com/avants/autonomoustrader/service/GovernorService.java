@@ -50,12 +50,28 @@ public class GovernorService {
     public StrategyManifest loadStrategy() throws IOException {
         String resourcePath = normalizeResourcePath(strategyPath);
         Resource resource = resourceLoader.getResource(resourcePath);
-        log.info("Loading strategy from: {}", strategyPath);
+        log.info("Loading strategy from: {} (normalized to: {})", strategyPath, resourcePath);
         try (InputStream inputStream = resource.getInputStream()) {
             return objectMapper.readValue(inputStream, StrategyManifest.class);
         } catch (IOException e) {
-            log.error("strategy.json not found at: {}", strategyPath);
-            throw new IOException("strategy.json not found at: " + strategyPath, e);
+            log.error("Failed to load strategy from: {} (resource: {}). Message: {}", strategyPath, resource.getDescription(), e.getMessage());
+            // Fallback: If it's a classpath resource that failed, try as a plain file resource if it exists.
+            if (strategyPath.startsWith("classpath:")) {
+                String plainPath = strategyPath.substring("classpath:".length());
+                if (plainPath.startsWith("/")) {
+                    plainPath = plainPath.substring(1);
+                }
+                File file = new File(plainPath);
+                if (file.exists()) {
+                    log.info("Fallback: Loading strategy from filesystem at: {}", file.getAbsolutePath());
+                    try (InputStream inputStream = new java.io.FileInputStream(file)) {
+                        return objectMapper.readValue(inputStream, StrategyManifest.class);
+                    } catch (IOException e2) {
+                        log.error("Fallback failed to load strategy from filesystem: {}", file.getAbsolutePath(), e2);
+                    }
+                }
+            }
+            throw new IOException("strategy.json not found at: " + strategyPath + " (Resource: " + resource.getDescription() + ")", e);
         }
     }
 
