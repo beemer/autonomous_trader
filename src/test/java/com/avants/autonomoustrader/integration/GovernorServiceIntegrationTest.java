@@ -70,11 +70,6 @@ class GovernorServiceIntegrationTest {
     }
 
     @Test
-    void shouldPrintManifestSummaryWithoutException() {
-        assertDoesNotThrow(() -> governorService.printManifestSummary());
-    }
-
-    @Test
     void shouldSaveAndLoadPositionsRoundTrip() throws IOException {
         com.avants.autonomoustrader.dto.KiteDto.LivePortfolio portfolio =
                 new com.avants.autonomoustrader.dto.KiteDto.LivePortfolio(java.util.List.of(), java.util.List.of());

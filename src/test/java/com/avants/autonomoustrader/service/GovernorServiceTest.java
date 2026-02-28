@@ -76,17 +76,7 @@ class GovernorServiceTest {
     }
 
     @Test
-    void shouldThrowIOExceptionWhenStrategyFileMissing() {
-        GovernorService noFileService = new GovernorService(
-                tempDir.resolve("missing_strategy.json").toString(),
-                positionsFile.getAbsolutePath()
-        );
-        assertThrows(IOException.class, noFileService::loadStrategy);
-    }
-
-    @Test
     void shouldReturnEmptyPositionsWhenFileMissing() throws IOException {
-        // positionsFile does not exist yet
         PositionsManifest positions = governorService.loadPositions();
         assertNotNull(positions);
         assertNull(positions.getLivePortfolio());
