@@ -1,7 +1,6 @@
 package com.avants.autonomoustrader.service;
 
 import com.avants.autonomoustrader.dto.KiteDto;
-import com.avants.autonomoustrader.model.TradingManifest;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Holding;
@@ -22,8 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * KiteSyncService — The Nervous System.
  * Fetches live Holdings and Positions from Zerodha in parallel using CompletableFuture
- * on Java 21 Virtual Threads, then updates the trading_manifest.json every minute.
- * Strictly read-only: no order placement logic.
+ * on Java 21 Virtual Threads, then updates positions.json every minute.
+ * Strictly isolated: only writes to positions.json; strategy.json is never touched.
  */
 @Service
 public class KiteSyncService {
@@ -66,7 +65,7 @@ public class KiteSyncService {
 
     /**
      * Scheduled task: runs every minute to fetch live portfolio data from Zerodha
-     * and persist it into the trading manifest.
+     * and persist it into positions.json only. strategy.json is never modified.
      */
     @Scheduled(fixedDelay = 60_000)
     public void syncPortfolio() {
@@ -75,11 +74,11 @@ public class KiteSyncService {
             log.warn("Skipping portfolio sync — access token is not set. Complete OAuth handshake via the UI login flow.");
             return;
         }
+
         log.info("Starting Kite portfolio sync...");
         try {
             CompletableFuture<List<KiteDto.HoldingDto>> holdingsFuture =
                     CompletableFuture.supplyAsync(this::fetchHoldings, virtualThreadExecutor);
-
             CompletableFuture<List<KiteDto.PositionDto>> positionsFuture =
                     CompletableFuture.supplyAsync(this::fetchPositions, virtualThreadExecutor);
 
@@ -89,10 +88,7 @@ public class KiteSyncService {
             List<KiteDto.PositionDto> positions = positionsFuture.get();
 
             KiteDto.LivePortfolio livePortfolio = new KiteDto.LivePortfolio(holdings, positions);
-
-            TradingManifest manifest = governorService.loadManifest();
-            manifest.setLivePortfolio(livePortfolio);
-            governorService.saveManifest(manifest);
+            governorService.savePositions(livePortfolio);
 
             sessionExpired.set(false);
             log.info("Portfolio sync complete — {} holdings, {} net positions", holdings.size(), positions.size());
@@ -108,14 +104,13 @@ public class KiteSyncService {
     }
 
     /**
-     * Returns the latest live portfolio from the manifest, or null if not yet synced.
+     * Returns the latest live portfolio from positions.json, or null if not yet synced.
      */
     public KiteDto.LivePortfolio getLivePortfolio() {
         try {
-            TradingManifest manifest = governorService.loadManifest();
-            return manifest.getLivePortfolio();
+            return governorService.loadPositions().getLivePortfolio();
         } catch (IOException e) {
-            log.error("Failed to load manifest for live portfolio", e);
+            log.error("Failed to load positions for live portfolio", e);
             return null;
         }
     }

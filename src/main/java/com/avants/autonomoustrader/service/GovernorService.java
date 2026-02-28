@@ -1,88 +1,103 @@
 package com.avants.autonomoustrader.service;
 
-import com.avants.autonomoustrader.model.TradingManifest;
+import com.avants.autonomoustrader.dto.KiteDto;
+import com.avants.autonomoustrader.model.PositionsManifest;
+import com.avants.autonomoustrader.model.StrategyManifest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
  * The Governor (Librarian) Service.
- * Responsible for reading, writing, and managing "The Bible" — trading_manifest.json.
- * This manifest defines the trading Universe and Technical Strategy consumed by OpenClaw (The Executioner).
+ * Loads "The Rules" from strategy.json (read-only) and "The Money" from positions.json (writable).
+ * Provides a unified view to the DashboardController without ever mixing the two concerns.
  */
 @Service
 public class GovernorService {
 
     private static final Logger log = LoggerFactory.getLogger(GovernorService.class);
 
-    private String manifestPath;
+    private final String strategyPath;
+    private final String positionsPath;
     private final ObjectMapper objectMapper;
 
-    public GovernorService(@Value("${trading.manifest.path:trading_manifest.json}") String manifestPath) {
-        this.manifestPath = manifestPath;
+    public GovernorService(
+            @Value("${trading.strategy.path:strategy.json}") String strategyPath,
+            @Value("${trading.positions.path:positions.json}") String positionsPath) {
+        this.strategyPath = strategyPath;
+        this.positionsPath = positionsPath;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
     }
 
     /**
-     * Loads the current trading manifest from disk.
-     *
-     * @return the deserialized TradingManifest
-     * @throws IOException if the file cannot be read or parsed
+     * Loads the strategy manifest (read-only rules) from strategy.json.
      */
-    public TradingManifest loadManifest() throws IOException {
-        if (manifestPath.startsWith("classpath:")) {
-            String classpathLocation = manifestPath.substring("classpath:".length());
-            ClassPathResource resource = new ClassPathResource(classpathLocation);
-            if (!resource.exists()) {
-                log.error("trading_manifest.json not found on classpath at: {}", classpathLocation);
-                throw new IOException("trading_manifest.json not found at: " + classpathLocation);
-            }
-            log.info("Loading manifest from classpath: {}", classpathLocation);
-            try (InputStream is = resource.getInputStream()) {
-                return objectMapper.readValue(is, TradingManifest.class);
-            }
+    public StrategyManifest loadStrategy() throws IOException {
+        File file = new File(strategyPath);
+        if (!file.exists()) {
+            log.error("strategy.json not found at: {}", file.getAbsolutePath());
+            throw new IOException("strategy.json not found at: " + file.getAbsolutePath());
         }
-        File manifestFile = new File(manifestPath);
-        if (!manifestFile.exists()) {
-            log.error("trading_manifest.json not found at: {}", manifestFile.getAbsolutePath());
-            throw new IOException("trading_manifest.json not found at: " + manifestFile.getAbsolutePath());
-        }
-        log.info("Loading manifest from: {}", manifestFile.getAbsolutePath());
-        return objectMapper.readValue(manifestFile, TradingManifest.class);
+        log.info("Loading strategy from: {}", file.getAbsolutePath());
+        return objectMapper.readValue(file, StrategyManifest.class);
     }
 
     /**
-     * Persists the trading manifest to disk, stamping the current timestamp.
-     *
-     * @param manifest the TradingManifest to save
-     * @throws IOException if the file cannot be written
+     * Loads the positions manifest (live portfolio) from positions.json.
      */
-    public void saveManifest(TradingManifest manifest) throws IOException {
+    public PositionsManifest loadPositions() throws IOException {
+        File file = new File(positionsPath);
+        if (!file.exists()) {
+            log.warn("positions.json not found at: {} — returning empty manifest", file.getAbsolutePath());
+            return new PositionsManifest();
+        }
+        log.info("Loading positions from: {}", file.getAbsolutePath());
+        return objectMapper.readValue(file, PositionsManifest.class);
+    }
+
+    /**
+     * Persists updated live portfolio data to positions.json only.
+     * Strategy rules in strategy.json are never touched.
+     */
+    public void savePositions(KiteDto.LivePortfolio livePortfolio) throws IOException {
+        PositionsManifest manifest = new PositionsManifest();
         manifest.setLastUpdated(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        objectMapper.writeValue(new File(manifestPath), manifest);
-        log.info("Manifest saved to: {} (version: {}, lastUpdated: {})", manifestPath, manifest.getManifestVersion(), manifest.getLastUpdated());
+        manifest.setLivePortfolio(livePortfolio);
+        objectMapper.writeValue(new File(positionsPath), manifest);
+        log.info("positions.json saved — {} holdings, {} positions",
+                livePortfolio.holdings() != null ? livePortfolio.holdings().size() : 0,
+                livePortfolio.positions() != null ? livePortfolio.positions().size() : 0);
     }
 
     /**
-     * Logs a summary of the current manifest for quick inspection.
+     * Logs a summary of both manifests for quick inspection.
      */
     public void printManifestSummary() throws IOException {
-        TradingManifest manifest = loadManifest();
-        log.info("=== Trading Manifest Summary ===");
-        log.info("Version     : {}", manifest.getManifestVersion());
-        log.info("Last Updated: {}", manifest.getLastUpdated());
-        log.info("Universe    : {} ({} symbols)", manifest.getUniverse().getName(), manifest.getUniverse().getSymbols().size());
-        log.info("Strategy    : {}", manifest.getTechnicalStrategy().getName());
-        log.info("================================");
+        StrategyManifest strategy = loadStrategy();
+        PositionsManifest positions = loadPositions();
+        log.info("=== Strategy Manifest Summary ===");
+        log.info("Version     : {}", strategy.getStrategyVersion());
+        log.info("Last Updated: {}", strategy.getLastUpdated());
+        log.info("Universe    : {} ({} symbols)", strategy.getUniverse().name(), strategy.getUniverse().symbols().size());
+        log.info("Strategy    : {}", strategy.getTechnicalStrategy().name());
+        log.info("=== Positions Manifest Summary ===");
+        log.info("Last Updated: {}", positions.getLastUpdated());
+        KiteDto.LivePortfolio portfolio = positions.getLivePortfolio();
+        if (portfolio != null) {
+            log.info("Holdings    : {}", portfolio.holdings() != null ? portfolio.holdings().size() : 0);
+            log.info("Positions   : {}", portfolio.positions() != null ? portfolio.positions().size() : 0);
+        } else {
+            log.info("Portfolio   : (not yet synced)");
+        }
+        log.info("==================================");
     }
 }

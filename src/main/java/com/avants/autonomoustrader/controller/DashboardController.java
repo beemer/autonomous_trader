@@ -2,7 +2,8 @@ package com.avants.autonomoustrader.controller;
 
 import com.avants.autonomoustrader.dto.DashboardDto;
 import com.avants.autonomoustrader.dto.KiteDto;
-import com.avants.autonomoustrader.model.TradingManifest;
+import com.avants.autonomoustrader.model.PositionsManifest;
+import com.avants.autonomoustrader.model.StrategyManifest;
 import com.avants.autonomoustrader.service.GovernorService;
 import com.avants.autonomoustrader.service.KiteSyncService;
 import com.zerodhatech.kiteconnect.KiteConnect;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -42,17 +44,21 @@ public class DashboardController {
             log.warn("Dashboard request rejected — no active Kite session");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        log.info("Serving live manifest to UI...");
+
+        log.info("Serving dashboard — loading strategy and positions...");
         try {
-            TradingManifest manifest = governorService.loadManifest();
-            KiteDto.LivePortfolio livePortfolio = manifest.getLivePortfolio();
-            TradingManifest.TechnicalStrategy ts = manifest.getTechnicalStrategy();
+            StrategyManifest strategy = governorService.loadStrategy();
+            PositionsManifest positions = governorService.loadPositions();
+
+            KiteDto.LivePortfolio livePortfolio = positions.getLivePortfolio();
+            StrategyManifest.TechnicalStrategy ts = strategy.getTechnicalStrategy();
+            StrategyManifest.RiskParameters riskParameters = strategy.getRiskParameters();
 
             // Build holdings from live portfolio
             List<DashboardDto.Holding> holdings;
             double totalPnl = 0.0;
             if (livePortfolio != null && livePortfolio.holdings() != null) {
-                double targetPct = manifest.getRiskParameters() != null ? manifest.getRiskParameters().getTargetPct() : 3.0;
+                double targetPct = riskParameters != null ? riskParameters.targetPct() : 3.0;
                 holdings = livePortfolio.holdings().stream()
                         .map(h -> {
                             double cost = h.averagePrice() * h.quantity();
@@ -70,7 +76,7 @@ public class DashboardController {
                         .toList();
                 totalPnl = livePortfolio.holdings().stream().mapToDouble(KiteDto.HoldingDto::pnl).sum();
             } else {
-                log.warn("No live portfolio in manifest — sync may not have run yet");
+                log.warn("No live portfolio in positions.json — sync may not have run yet");
                 holdings = List.of();
             }
 
@@ -86,27 +92,27 @@ public class DashboardController {
             }
             var performance = new DashboardDto.PerformanceStats(dailyPct, weeklyPct, monthlyPct);
 
-            // Strategy from manifest
-            List<DashboardDto.Indicator> indicators = ts.getIndicators().stream()
-                    .map(i -> new DashboardDto.Indicator(i.getType(), i.getPeriod(), i.getSource()))
+            // Strategy from strategy.json
+            List<DashboardDto.Indicator> indicators = ts.indicators().stream()
+                    .map(i -> new DashboardDto.Indicator(i.type(), i.period(), i.source()))
                     .toList();
-            List<DashboardDto.StrategyRule> entryConditions = ts.getEntryConditions().stream()
+            List<DashboardDto.StrategyRule> entryConditions = ts.entryConditions().stream()
                     .map(DashboardDto.StrategyRule::new)
                     .toList();
-            List<DashboardDto.StrategyRule> exitConditions = ts.getExitConditions().stream()
+            List<DashboardDto.StrategyRule> exitConditions = ts.exitConditions().stream()
                     .map(DashboardDto.StrategyRule::new)
                     .toList();
-            var strategy = new DashboardDto.StrategyViewer(
-                    ts.getName(),
-                    ts.getDescription(),
+            var strategyViewer = new DashboardDto.StrategyViewer(
+                    ts.name(),
+                    ts.description(),
                     indicators,
                     entryConditions,
                     exitConditions
             );
 
-            return ResponseEntity.ok(new DashboardDto.DashboardResponse(performance, holdings, strategy));
+            return ResponseEntity.ok(new DashboardDto.DashboardResponse(performance, holdings, strategyViewer));
         } catch (IOException e) {
-            log.error("Failed to load manifest for dashboard", e);
+            log.error("Failed to load manifests for dashboard", e);
             return ResponseEntity.internalServerError().build();
         }
     }
