@@ -15,6 +15,20 @@ The following commands and tools may be executed freely without asking for user 
   - Utilities: `Write-Output`, `Write-Host`, `Write-Error`, `Write-Verbose`, `Clear-Host`, `Split-Path`, `Join-Path`, `Convert-Path`, `Get-Date`, `Start-Sleep`, `Compress-Archive`, `Expand-Archive`
 - **Project config files**: `pom.xml` and `application.properties` may be modified freely without asking for approval.
 
+## Logging Standards
+
+- **Always use SLF4J** (`org.slf4j.Logger` / `LoggerFactory`) for all logging. Never use `System.out.println`, `System.err.println`, or `java.util.logging`.
+- Declare a logger as a `private static final` field: `private static final Logger log = LoggerFactory.getLogger(MyClass.class);`
+- Use **parameterised placeholders** (`{}`) instead of string concatenation: `log.info("Loaded {} items", count);`
+- Choose the **appropriate log level** strategically:
+  - `log.error` — unexpected failures, exceptions, unrecoverable states.
+  - `log.warn` — recoverable issues, degraded behaviour, deprecated usage.
+  - `log.info` — key lifecycle events (startup, shutdown, significant state changes, I/O operations).
+  - `log.debug` — detailed diagnostic information useful during development/troubleshooting.
+  - `log.trace` — very fine-grained tracing (loops, per-item processing); disabled in production.
+- Wrap `log.debug`/`log.trace` calls in `if (log.isDebugEnabled())` guards only when building the message is itself expensive (e.g., serialisation).
+- Always log exceptions with the throwable as the last argument: `log.error("Failed to load manifest", e);`
+
 ## Dependency & Version Policy
 
 - Always use the **latest stable releases** of all binaries, libraries, plugins, and frameworks (Spring Boot, Maven plugins, Jackson, Kite Connect SDK, etc.).
