@@ -1,5 +1,6 @@
 package com.avants.autonomoustrader.model;
 
+import com.avants.autonomoustrader.dto.KiteDto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
@@ -20,6 +21,9 @@ public class TradingManifest {
     @JsonProperty("risk_parameters")
     private RiskParameters riskParameters;
 
+    @JsonProperty("live_portfolio")
+    private KiteDto.LivePortfolio livePortfolio;
+
     // Getters and Setters
 
     public String getManifestVersion() { return manifestVersion; }
@@ -36,6 +40,9 @@ public class TradingManifest {
 
     public RiskParameters getRiskParameters() { return riskParameters; }
     public void setRiskParameters(RiskParameters riskParameters) { this.riskParameters = riskParameters; }
+
+    public KiteDto.LivePortfolio getLivePortfolio() { return livePortfolio; }
+    public void setLivePortfolio(KiteDto.LivePortfolio livePortfolio) { this.livePortfolio = livePortfolio; }
 
     // --- Nested Classes ---
 
