@@ -20,9 +20,6 @@ class GovernorServiceIntegrationTest {
     @Autowired
     private GovernorService governorService;
 
-    @MockBean
-    private KiteConnect kiteConnect;
-
     @Test
     void contextLoads() {
         assertNotNull(governorService);
