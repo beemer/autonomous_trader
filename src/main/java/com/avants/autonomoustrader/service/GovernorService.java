@@ -18,10 +18,15 @@ import java.time.format.DateTimeFormatter;
 @Service
 public class GovernorService {
 
-    private static final String MANIFEST_PATH = "trading_manifest.json";
+    private String manifestPath;
     private final ObjectMapper objectMapper;
 
     public GovernorService() {
+        this("trading_manifest.json");
+    }
+
+    public GovernorService(String manifestPath) {
+        this.manifestPath = manifestPath;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
     }
@@ -33,7 +38,7 @@ public class GovernorService {
      * @throws IOException if the file cannot be read or parsed
      */
     public TradingManifest loadManifest() throws IOException {
-        File manifestFile = new File(MANIFEST_PATH);
+        File manifestFile = new File(manifestPath);
         if (!manifestFile.exists()) {
             throw new IOException("trading_manifest.json not found at: " + manifestFile.getAbsolutePath());
         }
@@ -48,7 +53,7 @@ public class GovernorService {
      */
     public void saveManifest(TradingManifest manifest) throws IOException {
         manifest.setLastUpdated(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        objectMapper.writeValue(new File(MANIFEST_PATH), manifest);
+        objectMapper.writeValue(new File(manifestPath), manifest);
     }
 
     /**
