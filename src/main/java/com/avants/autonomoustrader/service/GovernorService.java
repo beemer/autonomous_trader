@@ -5,152 +5,99 @@ import com.avants.autonomoustrader.model.PositionsManifest;
 import com.avants.autonomoustrader.model.StrategyManifest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * The Governor (Librarian) Service.
- * Loads "The Rules" from strategy.json (read-only) and "The Money" from positions.json (writable).
- * Provides a unified view to the DashboardController without ever mixing the two concerns.
- */
 @Service
 public class GovernorService {
 
     private static final Logger log = LoggerFactory.getLogger(GovernorService.class);
 
-    private final String strategyPath;
-    private final String positionsPath;
+    private final Path strategyPath;
+    private final Path positionsPath;
     private final ObjectMapper objectMapper;
-    private final ResourceLoader resourceLoader;
 
     public GovernorService(
             @Value("${trading.strategy.path:strategy.json}") String strategyPath,
-            @Value("${trading.positions.path:positions.json}") String positionsPath,
-            ResourceLoader resourceLoader) {
-        this.strategyPath = strategyPath;
-        this.positionsPath = positionsPath;
-        this.resourceLoader = resourceLoader;
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+            @Value("${trading.positions.path:positions.json}") String positionsPath) {
+        this.strategyPath = Paths.get(strategyPath);
+        this.positionsPath = Paths.get(positionsPath);
+        this.objectMapper = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .enable(SerializationFeature.INDENT_OUTPUT);
     }
 
     /**
-     * Loads the strategy manifest (read-only rules) from strategy.json.
+     * Loads Strategy (The Rules).
+     * If missing, it tries to copy a default from classpath to disk.
      */
     public StrategyManifest loadStrategy() throws IOException {
-        String resourcePath = normalizeResourcePath(strategyPath);
-        Resource resource = resourceLoader.getResource(resourcePath);
-        log.info("Loading strategy from: {} (normalized to: {})", strategyPath, resourcePath);
-        try (InputStream inputStream = resource.getInputStream()) {
-            return objectMapper.readValue(inputStream, StrategyManifest.class);
-        } catch (IOException e) {
-            log.error("Failed to load strategy from: {} (resource: {}). Message: {}", strategyPath, resource.getDescription(), e.getMessage());
-            // Fallback: If it's a classpath resource that failed, try as a plain file resource if it exists.
-            if (strategyPath.startsWith("classpath:")) {
-                String plainPath = strategyPath.substring("classpath:".length());
-                if (plainPath.startsWith("/")) {
-                    plainPath = plainPath.substring(1);
-                }
-                File file = new File(plainPath);
-                if (file.exists()) {
-                    log.info("Fallback: Loading strategy from filesystem at: {}", file.getAbsolutePath());
-                    try (InputStream inputStream = new java.io.FileInputStream(file)) {
-                        return objectMapper.readValue(inputStream, StrategyManifest.class);
-                    } catch (IOException e2) {
-                        log.error("Fallback failed to load strategy from filesystem: {}", file.getAbsolutePath(), e2);
-                    }
-                }
-            }
-            throw new IOException("strategy.json not found at: " + strategyPath + " (Resource: " + resource.getDescription() + ")", e);
+        if (!Files.exists(strategyPath)) {
+            log.warn("Strategy file not found at {}. Attempting to seed from defaults...", strategyPath);
+            seedDefaultStrategy();
         }
+        return objectMapper.readValue(strategyPath.toFile(), StrategyManifest.class);
     }
 
     /**
-     * Loads the positions manifest (live portfolio) from positions.json.
+     * Loads Positions (The Money).
+     * If missing, returns empty - allowing for "Delete to Refresh" testing.
      */
-    public PositionsManifest loadPositions() throws IOException {
-        String resourcePath = normalizeResourcePath(positionsPath);
-        Resource resource = resourceLoader.getResource(resourcePath);
-        log.info("Loading positions from: {}", positionsPath);
-        try (InputStream inputStream = resource.getInputStream()) {
-            return objectMapper.readValue(inputStream, PositionsManifest.class);
+    public PositionsManifest loadPositions() {
+        if (!Files.exists(positionsPath)) {
+            log.info("positions.json missing - returning empty state.");
+            return new PositionsManifest();
+        }
+        try {
+            return objectMapper.readValue(positionsPath.toFile(), PositionsManifest.class);
         } catch (IOException e) {
-            log.warn("positions.json not found at: {} — returning empty manifest", positionsPath);
+            log.error("Failed to parse positions.json, returning empty.", e);
             return new PositionsManifest();
         }
     }
 
     /**
-     * Persists updated live portfolio data to positions.json only.
-     * Strategy rules in strategy.json are never touched.
+     * Persists only position/portfolio data.
      */
     public void savePositions(KiteDto.LivePortfolio livePortfolio) throws IOException {
         PositionsManifest manifest = new PositionsManifest();
         manifest.setLastUpdated(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         manifest.setLivePortfolio(livePortfolio);
 
-        String resourcePath = normalizeResourcePath(positionsPath);
-        Resource resource = resourceLoader.getResource(resourcePath);
+        objectMapper.writeValue(positionsPath.toFile(), manifest);
+        log.info("Saved {} holdings to {}",
+                livePortfolio.holdings() != null ? livePortfolio.holdings().size() : 0,
+                positionsPath.toAbsolutePath());
+    }
 
-        // Writing to a classpath resource (e.g., inside a JAR) is not supported.
-        // We attempt to get the File handle if it's a direct file resource.
-        try {
-            File file = resource.getFile();
-            objectMapper.writeValue(file, manifest);
-            log.info("positions.json saved to: {} — {} holdings, {} positions",
-                    file.getAbsolutePath(),
-                    livePortfolio.holdings() != null ? livePortfolio.holdings().size() : 0,
-                    livePortfolio.positions() != null ? livePortfolio.positions().size() : 0);
-        } catch (IOException e) {
-            log.error("Cannot save positions — path '{}' is not a writable file (might be a classpath resource in a JAR)", positionsPath);
-            throw new IOException("Cannot save positions to non-writable path: " + positionsPath, e);
+    private void seedDefaultStrategy() throws IOException {
+        try (var is = getClass().getResourceAsStream("/strategy.json")) {
+            if (is != null) {
+                Files.copy(is, strategyPath);
+                log.info("Seeded default strategy.json from classpath to {}", strategyPath.toAbsolutePath());
+            } else {
+                throw new IOException("Could not find default strategy.json in classpath resources.");
+            }
         }
     }
 
-    /**
-     * Logs a summary of both manifests for quick inspection.
-     */
-    public void printManifestSummary() throws IOException {
-        StrategyManifest strategy = loadStrategy();
-        PositionsManifest positions = loadPositions();
-        log.info("=== Strategy Manifest Summary ===");
-        log.info("Version     : {}", strategy.getStrategyVersion());
-        log.info("Last Updated: {}", strategy.getLastUpdated());
-        log.info("Universe    : {} ({} symbols)", strategy.getUniverse().name(), strategy.getUniverse().symbols().size());
-        log.info("Strategy    : {}", strategy.getTechnicalStrategy().name());
-        log.info("=== Positions Manifest Summary ===");
-        log.info("Last Updated: {}", positions.getLastUpdated());
-        KiteDto.LivePortfolio portfolio = positions.getLivePortfolio();
-        if (portfolio != null) {
-            log.info("Holdings    : {}", portfolio.holdings() != null ? portfolio.holdings().size() : 0);
-            log.info("Positions   : {}", portfolio.positions() != null ? portfolio.positions().size() : 0);
-        } else {
-            log.info("Portfolio   : (not yet synced)");
-        }
-        log.info("==================================");
-    }
-
-    /**
-     * Normalizes a path to work with Spring's ResourceLoader.
-     * If the path starts with "classpath:", "file:", "http:", or "https:", it's returned as-is.
-     * Otherwise, it's treated as an absolute file path and prefixed with "file:".
-     */
-    private String normalizeResourcePath(String path) {
-        if (path.startsWith("classpath:") || path.startsWith("file:") ||
-            path.startsWith("http:") || path.startsWith("https:")) {
-            return path;
-        }
-        // Treat as absolute file path
-        return "file:" + path;
+    public void printSummary() throws IOException {
+        var s = loadStrategy();
+        var p = loadPositions();
+        log.info("=== GOVERNOR SUMMARY ===");
+        log.info("Strategy: {} | Version: {}", s.getTechnicalStrategy().name(), s.getStrategyVersion());
+        log.info("Holdings: {}", p.getLivePortfolio() != null ? p.getLivePortfolio().holdings().size() : 0);
+        log.info("========================");
     }
 }
