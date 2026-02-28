@@ -85,11 +85,20 @@ public class GovernorService {
 
         String resourcePath = normalizeResourcePath(positionsPath);
         Resource resource = resourceLoader.getResource(resourcePath);
-        File file = resource.getFile();
-        objectMapper.writeValue(file, manifest);
-        log.info("positions.json saved — {} holdings, {} positions",
-                livePortfolio.holdings() != null ? livePortfolio.holdings().size() : 0,
-                livePortfolio.positions() != null ? livePortfolio.positions().size() : 0);
+
+        // Writing to a classpath resource (e.g., inside a JAR) is not supported.
+        // We attempt to get the File handle if it's a direct file resource.
+        try {
+            File file = resource.getFile();
+            objectMapper.writeValue(file, manifest);
+            log.info("positions.json saved to: {} — {} holdings, {} positions",
+                    file.getAbsolutePath(),
+                    livePortfolio.holdings() != null ? livePortfolio.holdings().size() : 0,
+                    livePortfolio.positions() != null ? livePortfolio.positions().size() : 0);
+        } catch (IOException e) {
+            log.error("Cannot save positions — path '{}' is not a writable file (might be a classpath resource in a JAR)", positionsPath);
+            throw new IOException("Cannot save positions to non-writable path: " + positionsPath, e);
+        }
     }
 
     /**
