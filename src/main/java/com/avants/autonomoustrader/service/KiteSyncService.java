@@ -30,7 +30,7 @@ public class KiteSyncService {
     private static final Logger log = LoggerFactory.getLogger(KiteSyncService.class);
 
     private final KiteConnect kiteConnect;
-    private final GovernorService governorService;
+    private final PersistenceManager governorService;
     private final Executor virtualThreadExecutor;
 
     @Value("${kite.api-key}")
@@ -40,7 +40,7 @@ public class KiteSyncService {
     private final AtomicBoolean sessionExpired = new AtomicBoolean(false);
 
     public KiteSyncService(KiteConnect kiteConnect,
-                           GovernorService governorService,
+                           PersistenceManager governorService,
                            @Qualifier("virtualThreadExecutor") Executor virtualThreadExecutor) {
         this.kiteConnect = kiteConnect;
         this.governorService = governorService;

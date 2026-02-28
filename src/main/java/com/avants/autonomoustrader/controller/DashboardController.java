@@ -2,9 +2,9 @@ package com.avants.autonomoustrader.controller;
 
 import com.avants.autonomoustrader.dto.DashboardDto;
 import com.avants.autonomoustrader.dto.KiteDto;
-import com.avants.autonomoustrader.model.PositionsManifest;
-import com.avants.autonomoustrader.model.StrategyManifest;
-import com.avants.autonomoustrader.service.GovernorService;
+import com.avants.autonomoustrader.model.LivePortfolio;
+import com.avants.autonomoustrader.model.TradingStrategy;
+import com.avants.autonomoustrader.service.PersistenceManager;
 import com.avants.autonomoustrader.service.KiteSyncService;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import org.slf4j.Logger;
@@ -25,10 +25,10 @@ public class DashboardController {
     private static final Logger log = LoggerFactory.getLogger(DashboardController.class);
 
     private final KiteSyncService kiteSyncService;
-    private final GovernorService governorService;
+    private final PersistenceManager governorService;
     private final KiteConnect kiteConnect;
 
-    public DashboardController(KiteSyncService kiteSyncService, GovernorService governorService, KiteConnect kiteConnect) {
+    public DashboardController(KiteSyncService kiteSyncService, PersistenceManager governorService, KiteConnect kiteConnect) {
         this.kiteSyncService = kiteSyncService;
         this.governorService = governorService;
         this.kiteConnect = kiteConnect;
@@ -47,12 +47,12 @@ public class DashboardController {
 
         log.info("Serving dashboard — loading strategy and positions...");
         try {
-            StrategyManifest strategy = governorService.loadStrategy();
-            PositionsManifest positions = governorService.loadPositions();
+            TradingStrategy strategy = governorService.loadStrategy();
+            LivePortfolio positions = governorService.loadPositions();
 
             KiteDto.LivePortfolio livePortfolio = positions.getLivePortfolio();
-            StrategyManifest.TechnicalStrategy ts = strategy.getTechnicalStrategy();
-            StrategyManifest.RiskParameters riskParameters = strategy.getRiskParameters();
+            TradingStrategy.TechnicalStrategy ts = strategy.getTechnicalStrategy();
+            TradingStrategy.RiskParameters riskParameters = strategy.getRiskParameters();
 
             // Build holdings from live portfolio
             List<DashboardDto.Holding> holdings;

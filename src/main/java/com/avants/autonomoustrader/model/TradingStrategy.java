@@ -8,7 +8,7 @@ import java.util.List;
  * Contains the trading universe, technical strategy, and risk parameters.
  * This file is never written by the sync service.
  */
-public class StrategyManifest {
+public class TradingStrategy {
 
     @JsonProperty("strategy_version")
     private String strategyVersion;

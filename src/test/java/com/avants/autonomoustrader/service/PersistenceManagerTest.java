@@ -1,8 +1,8 @@
 package com.avants.autonomoustrader.service;
 
 import com.avants.autonomoustrader.dto.KiteDto;
-import com.avants.autonomoustrader.model.PositionsManifest;
-import com.avants.autonomoustrader.model.StrategyManifest;
+import com.avants.autonomoustrader.model.LivePortfolio;
+import com.avants.autonomoustrader.model.TradingStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,12 +16,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class GovernorServiceTest {
+class PersistenceManagerTest {
 
     @TempDir
     Path tempDir;
 
-    private GovernorService governorService;
+    private PersistenceManager persistenceManager;
     private File positionsFile;
     private ObjectMapper objectMapper;
 
@@ -29,28 +29,28 @@ class GovernorServiceTest {
     void setUp() throws IOException {
         File strategyFile = tempDir.resolve("strategy.json").toFile();
         positionsFile = tempDir.resolve("positions.json").toFile();
-        governorService = new GovernorService(strategyFile.getAbsolutePath(), positionsFile.getAbsolutePath());
+        persistenceManager = new PersistenceManager(strategyFile.getAbsolutePath(), positionsFile.getAbsolutePath());
         objectMapper = new ObjectMapper();
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
 
         // Write a minimal strategy.json for tests that need it
-        StrategyManifest strategy = buildSampleStrategy();
+        TradingStrategy strategy = buildSampleStrategy();
         objectMapper.writeValue(strategyFile, strategy);
     }
 
-    private StrategyManifest buildSampleStrategy() {
-        StrategyManifest strategy = new StrategyManifest();
+    private TradingStrategy buildSampleStrategy() {
+        TradingStrategy strategy = new TradingStrategy();
         strategy.setStrategyVersion("1.0.0");
         strategy.setLastUpdated("2026-02-28T12:00:00");
-        strategy.setUniverse(new StrategyManifest.Universe("Nifty 50", "NSE", List.of("RELIANCE", "TCS", "INFY")));
-        strategy.setTechnicalStrategy(new StrategyManifest.TechnicalStrategy(
+        strategy.setUniverse(new TradingStrategy.Universe("Nifty 50", "NSE", List.of("RELIANCE", "TCS", "INFY")));
+        strategy.setTechnicalStrategy(new TradingStrategy.TechnicalStrategy(
                 "EMA Crossover + MACD Breakout",
                 "Test strategy",
-                List.of(new StrategyManifest.Indicator("EMA", 9, "close")),
+                List.of(new TradingStrategy.Indicator("EMA", 9, "close")),
                 List.of("EMA_9 > EMA_200"),
                 List.of("Stop loss hit")
         ));
-        strategy.setRiskParameters(new StrategyManifest.RiskParameters(5.0, 5, 1.5, 3.0));
+        strategy.setRiskParameters(new TradingStrategy.RiskParameters(5.0, 5, 1.5, 3.0));
         return strategy;
     }
 
@@ -61,7 +61,7 @@ class GovernorServiceTest {
 
     @Test
     void shouldLoadStrategyFromDisk() throws IOException {
-        StrategyManifest loaded = governorService.loadStrategy();
+        TradingStrategy loaded = persistenceManager.loadStrategy();
 
         assertNotNull(loaded);
         assertEquals("1.0.0", loaded.getStrategyVersion());
@@ -77,7 +77,7 @@ class GovernorServiceTest {
 
     @Test
     void shouldReturnEmptyPositionsWhenFileMissing() throws IOException {
-        PositionsManifest positions = governorService.loadPositions();
+        LivePortfolio positions = persistenceManager.loadPositions();
         assertNotNull(positions);
         assertNull(positions.getLivePortfolio());
     }
@@ -85,9 +85,9 @@ class GovernorServiceTest {
     @Test
     void shouldSaveAndLoadPositionsRoundTrip() throws IOException {
         KiteDto.LivePortfolio portfolio = buildSamplePortfolio();
-        governorService.savePositions(portfolio);
+        persistenceManager.savePositions(portfolio);
 
-        PositionsManifest loaded = governorService.loadPositions();
+        LivePortfolio loaded = persistenceManager.loadPositions();
         assertNotNull(loaded);
         assertNotNull(loaded.getLastUpdated());
         assertNotNull(loaded.getLivePortfolio());
@@ -97,12 +97,12 @@ class GovernorServiceTest {
 
     @Test
     void shouldWriteValidJsonToPositionsFile() throws IOException {
-        governorService.savePositions(buildSamplePortfolio());
+        persistenceManager.savePositions(buildSamplePortfolio());
 
         assertTrue(positionsFile.exists());
         assertTrue(positionsFile.length() > 0);
 
-        PositionsManifest parsed = objectMapper.readValue(positionsFile, PositionsManifest.class);
+        LivePortfolio parsed = objectMapper.readValue(positionsFile, LivePortfolio.class);
         assertNotNull(parsed);
         assertNotNull(parsed.getLivePortfolio());
     }

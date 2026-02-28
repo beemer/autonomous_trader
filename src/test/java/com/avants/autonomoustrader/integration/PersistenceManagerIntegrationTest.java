@@ -1,12 +1,11 @@
 package com.avants.autonomoustrader.integration;
 
-import com.avants.autonomoustrader.model.StrategyManifest;
-import com.avants.autonomoustrader.service.GovernorService;
-import com.zerodhatech.kiteconnect.KiteConnect;
+import com.avants.autonomoustrader.model.LivePortfolio;
+import com.avants.autonomoustrader.model.TradingStrategy;
+import com.avants.autonomoustrader.service.PersistenceManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
@@ -15,19 +14,19 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
-class GovernorServiceIntegrationTest {
+class PersistenceManagerIntegrationTest {
 
     @Autowired
-    private GovernorService governorService;
+    private PersistenceManager persistenceManager;
 
     @Test
     void contextLoads() {
-        assertNotNull(governorService);
+        assertNotNull(persistenceManager);
     }
 
     @Test
     void shouldLoadRealStrategyFromDisk() throws IOException {
-        StrategyManifest strategy = governorService.loadStrategy();
+        TradingStrategy strategy = persistenceManager.loadStrategy();
 
         assertNotNull(strategy);
         assertNotNull(strategy.getStrategyVersion());
@@ -39,7 +38,7 @@ class GovernorServiceIntegrationTest {
 
     @Test
     void shouldLoadCorrectUniverseFromRealStrategy() throws IOException {
-        StrategyManifest strategy = governorService.loadStrategy();
+        TradingStrategy strategy = persistenceManager.loadStrategy();
 
         assertEquals("Nifty 50", strategy.getUniverse().name());
         assertEquals("NSE", strategy.getUniverse().exchange());
@@ -51,7 +50,7 @@ class GovernorServiceIntegrationTest {
 
     @Test
     void shouldLoadCorrectStrategyFromRealManifest() throws IOException {
-        StrategyManifest strategy = governorService.loadStrategy();
+        TradingStrategy strategy = persistenceManager.loadStrategy();
 
         assertEquals("EMA Crossover + MACD Breakout", strategy.getTechnicalStrategy().name());
         assertFalse(strategy.getTechnicalStrategy().indicators().isEmpty());
@@ -61,7 +60,7 @@ class GovernorServiceIntegrationTest {
 
     @Test
     void shouldLoadCorrectRiskParametersFromRealManifest() throws IOException {
-        StrategyManifest strategy = governorService.loadStrategy();
+        TradingStrategy strategy = persistenceManager.loadStrategy();
 
         assertEquals(5.0, strategy.getRiskParameters().maxCapitalPerTradePct());
         assertEquals(5, strategy.getRiskParameters().maxOpenPositions());
@@ -73,9 +72,9 @@ class GovernorServiceIntegrationTest {
     void shouldSaveAndLoadPositionsRoundTrip() throws IOException {
         com.avants.autonomoustrader.dto.KiteDto.LivePortfolio portfolio =
                 new com.avants.autonomoustrader.dto.KiteDto.LivePortfolio(java.util.List.of(), java.util.List.of());
-        governorService.savePositions(portfolio);
+        persistenceManager.savePositions(portfolio);
 
-        com.avants.autonomoustrader.model.PositionsManifest loaded = governorService.loadPositions();
+        LivePortfolio loaded = persistenceManager.loadPositions();
         assertNotNull(loaded);
         assertNotNull(loaded.getLastUpdated());
     }
