@@ -61,7 +61,7 @@ All of the following PowerShell cmdlets and operations are pre-approved — exec
 - **Never push directly to `main` or `master`.**
 - For every change, create a new feature branch with a descriptive name (e.g., `feature/add-login`, `fix/null-pointer-bug`).
 - After committing changes to the feature branch, open a Pull Request using the GitHub CLI (`gh pr create`).
-- Always include a clear PR title and description summarizing the changes.
+- Always include a clear PR title and a **short** description (1–2 sentences max) summarizing the changes. Do not use markdown headers or bullet lists in the PR body.
 - Example workflow:
   1. Fetch and rebase from `main` before creating a new branch: `git fetch origin ; git rebase origin/main`
   2. `git checkout -b feature/your-feature-name`

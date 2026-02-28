@@ -46,6 +46,11 @@ public class KiteSyncService {
      */
     @Scheduled(fixedDelay = 60_000)
     public void syncPortfolio() {
+        String accessToken = kiteConnect.getAccessToken();
+        if (accessToken == null || accessToken.equals("placeholder") || accessToken.equals("your_access_token_here")) {
+            log.warn("Skipping portfolio sync — access token is not set. Complete OAuth handshake at /api/auth/callback first.");
+            return;
+        }
         log.info("Starting Kite portfolio sync...");
         try {
             CompletableFuture<List<KiteDto.HoldingDto>> holdingsFuture =
