@@ -50,13 +50,12 @@ public class GovernorService {
     public StrategyManifest loadStrategy() throws IOException {
         String resourcePath = normalizeResourcePath(strategyPath);
         Resource resource = resourceLoader.getResource(resourcePath);
-        if (!resource.exists()) {
-            log.error("strategy.json not found at: {}", strategyPath);
-            throw new IOException("strategy.json not found at: " + strategyPath);
-        }
         log.info("Loading strategy from: {}", strategyPath);
         try (InputStream inputStream = resource.getInputStream()) {
             return objectMapper.readValue(inputStream, StrategyManifest.class);
+        } catch (IOException e) {
+            log.error("strategy.json not found at: {}", strategyPath);
+            throw new IOException("strategy.json not found at: " + strategyPath, e);
         }
     }
 
@@ -66,13 +65,12 @@ public class GovernorService {
     public PositionsManifest loadPositions() throws IOException {
         String resourcePath = normalizeResourcePath(positionsPath);
         Resource resource = resourceLoader.getResource(resourcePath);
-        if (!resource.exists()) {
-            log.warn("positions.json not found at: {} — returning empty manifest", positionsPath);
-            return new PositionsManifest();
-        }
         log.info("Loading positions from: {}", positionsPath);
         try (InputStream inputStream = resource.getInputStream()) {
             return objectMapper.readValue(inputStream, PositionsManifest.class);
+        } catch (IOException e) {
+            log.warn("positions.json not found at: {} — returning empty manifest", positionsPath);
+            return new PositionsManifest();
         }
     }
 
