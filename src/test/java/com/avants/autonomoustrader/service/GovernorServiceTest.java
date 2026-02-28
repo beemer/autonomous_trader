@@ -8,8 +8,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.core.io.DefaultResourceLoader;
-import org.springframework.core.io.ResourceLoader;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,17 +22,14 @@ class GovernorServiceTest {
     Path tempDir;
 
     private GovernorService governorService;
-    private File strategyFile;
     private File positionsFile;
     private ObjectMapper objectMapper;
-    private ResourceLoader resourceLoader;
 
     @BeforeEach
     void setUp() throws IOException {
-        strategyFile = tempDir.resolve("strategy.json").toFile();
+        File strategyFile = tempDir.resolve("strategy.json").toFile();
         positionsFile = tempDir.resolve("positions.json").toFile();
-        resourceLoader = new DefaultResourceLoader();
-        governorService = new GovernorService(strategyFile.getAbsolutePath(), positionsFile.getAbsolutePath(), resourceLoader);
+        governorService = new GovernorService(strategyFile.getAbsolutePath(), positionsFile.getAbsolutePath());
         objectMapper = new ObjectMapper();
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
 
@@ -81,18 +76,7 @@ class GovernorServiceTest {
     }
 
     @Test
-    void shouldThrowIOExceptionWhenStrategyFileMissing() {
-        GovernorService noFileService = new GovernorService(
-                tempDir.resolve("missing_strategy.json").toString(),
-                positionsFile.getAbsolutePath(),
-                resourceLoader
-        );
-        assertThrows(IOException.class, noFileService::loadStrategy);
-    }
-
-    @Test
     void shouldReturnEmptyPositionsWhenFileMissing() throws IOException {
-        // positionsFile does not exist yet
         PositionsManifest positions = governorService.loadPositions();
         assertNotNull(positions);
         assertNull(positions.getLivePortfolio());
@@ -123,8 +107,5 @@ class GovernorServiceTest {
         assertNotNull(parsed.getLivePortfolio());
     }
 
-    @Test
-    void shouldPrintManifestSummaryWithoutException() {
-        assertDoesNotThrow(() -> governorService.printManifestSummary());
-    }
+
 }

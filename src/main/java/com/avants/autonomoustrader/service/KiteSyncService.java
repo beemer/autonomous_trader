@@ -107,12 +107,7 @@ public class KiteSyncService {
      * Returns the latest live portfolio from positions.json, or null if not yet synced.
      */
     public KiteDto.LivePortfolio getLivePortfolio() {
-        try {
-            return governorService.loadPositions().getLivePortfolio();
-        } catch (IOException e) {
-            log.error("Failed to load positions for live portfolio", e);
-            return null;
-        }
+        return governorService.loadPositions().getLivePortfolio();
     }
 
     private List<KiteDto.HoldingDto> fetchHoldings() {
