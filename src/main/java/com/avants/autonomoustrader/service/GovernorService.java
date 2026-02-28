@@ -3,6 +3,8 @@ package com.avants.autonomoustrader.service;
 import com.avants.autonomoustrader.model.TradingManifest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -17,6 +19,8 @@ import java.time.format.DateTimeFormatter;
  */
 @Service
 public class GovernorService {
+
+    private static final Logger log = LoggerFactory.getLogger(GovernorService.class);
 
     private String manifestPath;
     private final ObjectMapper objectMapper;
@@ -40,8 +44,10 @@ public class GovernorService {
     public TradingManifest loadManifest() throws IOException {
         File manifestFile = new File(manifestPath);
         if (!manifestFile.exists()) {
+            log.error("trading_manifest.json not found at: {}", manifestFile.getAbsolutePath());
             throw new IOException("trading_manifest.json not found at: " + manifestFile.getAbsolutePath());
         }
+        log.info("Loading manifest from: {}", manifestFile.getAbsolutePath());
         return objectMapper.readValue(manifestFile, TradingManifest.class);
     }
 
@@ -54,19 +60,19 @@ public class GovernorService {
     public void saveManifest(TradingManifest manifest) throws IOException {
         manifest.setLastUpdated(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         objectMapper.writeValue(new File(manifestPath), manifest);
+        log.info("Manifest saved to: {} (version: {}, lastUpdated: {})", manifestPath, manifest.getManifestVersion(), manifest.getLastUpdated());
     }
 
     /**
-     * Prints a summary of the current manifest to stdout for quick inspection.
+     * Logs a summary of the current manifest for quick inspection.
      */
     public void printManifestSummary() throws IOException {
         TradingManifest manifest = loadManifest();
-        System.out.println("=== Trading Manifest Summary ===");
-        System.out.println("Version     : " + manifest.getManifestVersion());
-        System.out.println("Last Updated: " + manifest.getLastUpdated());
-        System.out.println("Universe    : " + manifest.getUniverse().getName()
-                + " (" + manifest.getUniverse().getSymbols().size() + " symbols)");
-        System.out.println("Strategy    : " + manifest.getTechnicalStrategy().getName());
-        System.out.println("================================");
+        log.info("=== Trading Manifest Summary ===");
+        log.info("Version     : {}", manifest.getManifestVersion());
+        log.info("Last Updated: {}", manifest.getLastUpdated());
+        log.info("Universe    : {} ({} symbols)", manifest.getUniverse().getName(), manifest.getUniverse().getSymbols().size());
+        log.info("Strategy    : {}", manifest.getTechnicalStrategy().getName());
+        log.info("================================");
     }
 }
