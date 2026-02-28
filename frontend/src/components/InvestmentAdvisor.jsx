@@ -1,4 +1,3 @@
-import { useState } from 'react'
 
 const DistanceBadge = ({ distancePct }) => {
   const isClose = Math.abs(distancePct) < 2
@@ -15,7 +14,10 @@ const DistanceBadge = ({ distancePct }) => {
   )
 }
 
-const RecommendationCard = ({ symbol, currentPrice, ema200, distancePct }) => {
+const RecommendationCard = ({ symbol, currentPrice, ltp, ema200, distancePct }) => {
+  // Use currentPrice if available, otherwise fallback to ltp for backward compatibility
+  const price = currentPrice !== undefined ? currentPrice : ltp;
+
   return (
     <div className="bg-gray-800 rounded-xl border border-gray-700 p-5 hover:border-emerald-700 transition-colors">
       <div className="flex items-start justify-between mb-3">
@@ -29,11 +31,11 @@ const RecommendationCard = ({ symbol, currentPrice, ema200, distancePct }) => {
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">Current Price</span>
-          <span className="text-white font-semibold">₹{currentPrice.toFixed(2)}</span>
+          <span className="text-white font-semibold">₹{price?.toFixed(2) || '0.00'}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">EMA 200</span>
-          <span className="text-cyan-300 font-semibold">₹{ema200.toFixed(2)}</span>
+          <span className="text-cyan-300 font-semibold">₹{ema200?.toFixed(2) || '0.00'}</span>
         </div>
         <div className="pt-2 border-t border-gray-700">
           <span className="text-gray-500 text-xs">Distance from EMA 200</span>
@@ -43,28 +45,7 @@ const RecommendationCard = ({ symbol, currentPrice, ema200, distancePct }) => {
   )
 }
 
-export default function InvestmentAdvisor() {
-  const [candidates, setCandidates] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-
-  const handleScanNifty50 = async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/v1/advice/top-candidates')
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      const data = await response.json()
-      setCandidates(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+export default function InvestmentAdvisor({ candidates, loading, error, onScan }) {
 
   return (
     <div className="space-y-6">
@@ -77,7 +58,7 @@ export default function InvestmentAdvisor() {
           </p>
         </div>
         <button
-          onClick={handleScanNifty50}
+          onClick={onScan}
           disabled={loading}
           className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-semibold px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2"
         >
@@ -154,6 +135,7 @@ export default function InvestmentAdvisor() {
                   key={candidate.symbol}
                   symbol={candidate.symbol}
                   currentPrice={candidate.currentPrice}
+                  ltp={candidate.ltp}
                   ema200={candidate.ema200}
                   distancePct={candidate.distancePct}
                 />
