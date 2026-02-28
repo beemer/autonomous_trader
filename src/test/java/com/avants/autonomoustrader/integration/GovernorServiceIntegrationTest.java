@@ -1,6 +1,6 @@
 package com.avants.autonomoustrader.integration;
 
-import com.avants.autonomoustrader.model.TradingManifest;
+import com.avants.autonomoustrader.model.StrategyManifest;
 import com.avants.autonomoustrader.service.GovernorService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,47 +24,47 @@ class GovernorServiceIntegrationTest {
     }
 
     @Test
-    void shouldLoadRealManifestFromDisk() throws IOException {
-        TradingManifest manifest = governorService.loadManifest();
+    void shouldLoadRealStrategyFromDisk() throws IOException {
+        StrategyManifest strategy = governorService.loadStrategy();
 
-        assertNotNull(manifest);
-        assertNotNull(manifest.getManifestVersion());
-        assertNotNull(manifest.getLastUpdated());
-        assertNotNull(manifest.getUniverse());
-        assertNotNull(manifest.getTechnicalStrategy());
-        assertNotNull(manifest.getRiskParameters());
+        assertNotNull(strategy);
+        assertNotNull(strategy.getStrategyVersion());
+        assertNotNull(strategy.getLastUpdated());
+        assertNotNull(strategy.getUniverse());
+        assertNotNull(strategy.getTechnicalStrategy());
+        assertNotNull(strategy.getRiskParameters());
     }
 
     @Test
-    void shouldLoadCorrectUniverseFromRealManifest() throws IOException {
-        TradingManifest manifest = governorService.loadManifest();
+    void shouldLoadCorrectUniverseFromRealStrategy() throws IOException {
+        StrategyManifest strategy = governorService.loadStrategy();
 
-        assertEquals("Nifty 50", manifest.getUniverse().getName());
-        assertEquals("NSE", manifest.getUniverse().getExchange());
-        assertFalse(manifest.getUniverse().getSymbols().isEmpty());
-        assertEquals(50, manifest.getUniverse().getSymbols().size());
-        assertTrue(manifest.getUniverse().getSymbols().contains("RELIANCE"));
-        assertTrue(manifest.getUniverse().getSymbols().contains("TCS"));
+        assertEquals("Nifty 50", strategy.getUniverse().name());
+        assertEquals("NSE", strategy.getUniverse().exchange());
+        assertFalse(strategy.getUniverse().symbols().isEmpty());
+        assertEquals(50, strategy.getUniverse().symbols().size());
+        assertTrue(strategy.getUniverse().symbols().contains("RELIANCE"));
+        assertTrue(strategy.getUniverse().symbols().contains("TCS"));
     }
 
     @Test
     void shouldLoadCorrectStrategyFromRealManifest() throws IOException {
-        TradingManifest manifest = governorService.loadManifest();
+        StrategyManifest strategy = governorService.loadStrategy();
 
-        assertEquals("EMA Crossover + MACD Breakout", manifest.getTechnicalStrategy().getName());
-        assertFalse(manifest.getTechnicalStrategy().getIndicators().isEmpty());
-        assertFalse(manifest.getTechnicalStrategy().getEntryConditions().isEmpty());
-        assertFalse(manifest.getTechnicalStrategy().getExitConditions().isEmpty());
+        assertEquals("EMA Crossover + MACD Breakout", strategy.getTechnicalStrategy().name());
+        assertFalse(strategy.getTechnicalStrategy().indicators().isEmpty());
+        assertFalse(strategy.getTechnicalStrategy().entryConditions().isEmpty());
+        assertFalse(strategy.getTechnicalStrategy().exitConditions().isEmpty());
     }
 
     @Test
     void shouldLoadCorrectRiskParametersFromRealManifest() throws IOException {
-        TradingManifest manifest = governorService.loadManifest();
+        StrategyManifest strategy = governorService.loadStrategy();
 
-        assertEquals(5.0, manifest.getRiskParameters().getMaxCapitalPerTradePct());
-        assertEquals(5, manifest.getRiskParameters().getMaxOpenPositions());
-        assertEquals(1.5, manifest.getRiskParameters().getStopLossPct());
-        assertEquals(3.0, manifest.getRiskParameters().getTargetPct());
+        assertEquals(5.0, strategy.getRiskParameters().maxCapitalPerTradePct());
+        assertEquals(5, strategy.getRiskParameters().maxOpenPositions());
+        assertEquals(1.5, strategy.getRiskParameters().stopLossPct());
+        assertEquals(3.0, strategy.getRiskParameters().targetPct());
     }
 
     @Test
