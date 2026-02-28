@@ -2,9 +2,11 @@ package com.avants.autonomoustrader.integration;
 
 import com.avants.autonomoustrader.model.StrategyManifest;
 import com.avants.autonomoustrader.service.GovernorService;
+import com.zerodhatech.kiteconnect.KiteConnect;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
@@ -17,6 +19,9 @@ class GovernorServiceIntegrationTest {
 
     @Autowired
     private GovernorService governorService;
+
+    @MockBean
+    private KiteConnect kiteConnect;
 
     @Test
     void contextLoads() {
