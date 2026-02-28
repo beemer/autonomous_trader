@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 
+const KITE_LOGIN_URL = 'http://localhost:8080/api/auth/login'
+
 const StatCard = ({ label, value }) => {
   const isPositive = value >= 0
   return (
@@ -32,10 +34,14 @@ export default function Dashboard() {
   useEffect(() => {
     fetch('/api/dashboard')
       .then(res => {
+        if (res.status === 401) {
+          window.location.href = KITE_LOGIN_URL
+          return
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
       })
-      .then(setData)
+      .then(json => { if (json) setData(json) })
       .catch(err => setError(err.message))
   }, [])
 
