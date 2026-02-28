@@ -31,7 +31,7 @@ public class DashboardController {
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardDto.DashboardResponse> getDashboard() {
-        log.info("Serving dashboard data from manifest");
+        log.info("Serving live manifest to UI...");
         try {
             TradingManifest manifest = governorService.loadManifest();
             KiteDto.LivePortfolio livePortfolio = manifest.getLivePortfolio();
